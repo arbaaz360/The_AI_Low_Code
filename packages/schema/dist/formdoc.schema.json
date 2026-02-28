@@ -1,0 +1,221 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "$id": "https://ai-low-code.example.com/formdoc.schema.json",
+    "title": "FormDoc",
+    "description": "Metadata contract for form documents (draft v1)",
+    "type": "object",
+    "required": ["schemaVersion", "pageFamily", "rootNodeId", "nodes", "dataContext", "submission"],
+    "properties": {
+        "schemaVersion": { "type": "string" },
+        "pageFamily": { "const": "Form" },
+        "rootNodeId": { "type": "string" },
+        "nodes": {
+            "type": "object",
+            "additionalProperties": { "$ref": "#/definitions/Node" }
+        },
+        "rules": {
+            "type": "array",
+            "items": { "$ref": "#/definitions/Rule" }
+        },
+        "actions": {
+            "type": "array",
+            "items": { "$ref": "#/definitions/ActionDef" }
+        },
+        "resources": { "$ref": "#/definitions/Resources" },
+        "permissions": { "$ref": "#/definitions/Permissions" },
+        "dataContext": { "$ref": "#/definitions/DataContext" },
+        "submission": { "$ref": "#/definitions/Submission" }
+    },
+    "additionalProperties": false,
+    "definitions": {
+        "OpRef": {
+            "type": "object",
+            "required": ["operationId"],
+            "properties": {
+                "operationId": { "type": "string" },
+                "params": { "type": "object" }
+            },
+            "additionalProperties": false
+        },
+        "Binding": {
+            "oneOf": [
+                { "type": "string" },
+                { "$ref": "#/definitions/Expr" }
+            ]
+        },
+        "Expr": {
+            "type": "object",
+            "required": ["op"],
+            "properties": {
+                "op": {
+                    "type": "string",
+                    "enum": ["lit", "ref", "eq", "neq", "gt", "gte", "lt", "lte", "and", "or", "not", "if", "coalesce"]
+                },
+                "value": {},
+                "path": { "type": "string" },
+                "left": { "$ref": "#/definitions/Expr" },
+                "right": { "$ref": "#/definitions/Expr" },
+                "args": { "type": "array", "items": { "$ref": "#/definitions/Expr" } },
+                "then": { "$ref": "#/definitions/Expr" },
+                "else": { "$ref": "#/definitions/Expr" }
+            },
+            "additionalProperties": false
+        },
+        "DataContext": {
+            "type": "object",
+            "required": ["entity", "mode"],
+            "properties": {
+                "entity": { "type": "string" },
+                "mode": { "enum": ["create", "edit", "view"] },
+                "recordId": { "$ref": "#/definitions/Binding" },
+                "loadOperation": { "$ref": "#/definitions/OpRef" }
+            },
+            "additionalProperties": false
+        },
+        "Submission": {
+            "type": "object",
+            "required": ["submitOperation", "mapping"],
+            "properties": {
+                "submitOperation": { "$ref": "#/definitions/OpRef" },
+                "mapping": {
+                    "type": "array",
+                    "items": { "$ref": "#/definitions/SubmissionMapping" }
+                },
+                "draftPolicy": { "$ref": "#/definitions/DraftPolicy" }
+            },
+            "additionalProperties": false
+        },
+        "SubmissionMapping": {
+            "type": "object",
+            "required": ["sourcePath", "targetPath"],
+            "properties": {
+                "sourcePath": { "type": "string" },
+                "targetPath": { "type": "string" },
+                "policy": { "enum": ["persisted", "writeOnly", "readOnly", "transient", "derived"] },
+                "transform": { "$ref": "#/definitions/Expr" },
+                "includeIf": { "$ref": "#/definitions/Expr" }
+            },
+            "additionalProperties": false
+        },
+        "DraftPolicy": {
+            "type": "object",
+            "properties": {
+                "enabled": { "type": "boolean" },
+                "storageKey": { "type": "string" }
+            },
+            "additionalProperties": false
+        },
+        "Rule": {
+            "type": "object",
+            "required": ["id", "target"],
+            "properties": {
+                "id": { "type": "string" },
+                "target": { "type": "string" },
+                "type": { "enum": ["visibility", "disabled", "requiredIf", "computed", "defaultValue"] },
+                "expr": { "$ref": "#/definitions/Expr" },
+                "value": {}
+            },
+            "additionalProperties": false
+        },
+        "ActionDef": {
+            "type": "object",
+            "required": ["id", "type"],
+            "properties": {
+                "id": { "type": "string" },
+                "type": {
+                    "enum": [
+                        "form.submit", "form.reset",
+                        "data.query", "data.mutate",
+                        "ui.toast", "ui.openDialog",
+                        "navigate.to",
+                        "state.set"
+                    ]
+                },
+                "params": { "type": "object" }
+            },
+            "additionalProperties": false
+        },
+        "Resources": {
+            "type": "object",
+            "additionalProperties": false
+        },
+        "Permissions": {
+            "type": "object",
+            "additionalProperties": { "type": "array", "items": { "type": "string" } }
+        },
+        "Node": {
+            "type": "object",
+            "required": ["id", "type"],
+            "properties": {
+                "id": { "type": "string" },
+                "type": { "type": "string" },
+                "props": { "type": "object" },
+                "children": {
+                    "type": "array",
+                    "items": { "type": "string" }
+                },
+                "layout": { "type": "object" },
+                "bindings": {
+                    "type": "object",
+                    "properties": {
+                        "value": { "$ref": "#/definitions/Binding" },
+                        "label": { "$ref": "#/definitions/Binding" },
+                        "help": { "$ref": "#/definitions/Binding" },
+                        "options": { "$ref": "#/definitions/Binding" },
+                        "visible": { "$ref": "#/definitions/Binding" },
+                        "disabled": { "$ref": "#/definitions/Binding" },
+                        "computed": { "$ref": "#/definitions/Binding" }
+                    },
+                    "additionalProperties": false
+                },
+                "validation": {
+                    "type": "object",
+                    "properties": {
+                        "validators": {
+                            "type": "array",
+                            "items": { "$ref": "#/definitions/Validator" }
+                        },
+                        "asyncValidators": {
+                            "type": "array",
+                            "items": { "$ref": "#/definitions/AsyncValidator" }
+                        }
+                    },
+                    "additionalProperties": false
+                },
+                "events": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                    }
+                },
+                "styleTokens": {
+                    "type": "object",
+                    "additionalProperties": { "type": "string" }
+                }
+            },
+            "additionalProperties": false
+        },
+        "Validator": {
+            "type": "object",
+            "required": ["type"],
+            "properties": {
+                "type": { "type": "string" },
+                "message": { "type": "string" },
+                "params": { "type": "object" }
+            },
+            "additionalProperties": false
+        },
+        "AsyncValidator": {
+            "type": "object",
+            "required": ["type", "operationRef"],
+            "properties": {
+                "type": { "type": "string" },
+                "operationRef": { "$ref": "#/definitions/OpRef" },
+                "message": { "type": "string" },
+                "debounceMs": { "type": "number" }
+            },
+            "additionalProperties": false
+        }
+    }
+}

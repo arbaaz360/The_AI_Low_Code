@@ -1,0 +1,16 @@
+{
+  "name": "the-ai-low-code-platform",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "workspaces": ["packages/*", "apps/*"],
+  "scripts": {
+"test": "npm run test --workspaces",
+    "build": "npm run build --workspace=@ai-low-code/schema",
+    "lint": "npm run lint --workspace=@ai-low-code/schema"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  }
+}

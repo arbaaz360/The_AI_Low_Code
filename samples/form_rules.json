@@ -1,0 +1,104 @@
+{
+  "schemaVersion": "1.0",
+  "pageFamily": "Form",
+  "rootNodeId": "root",
+  "nodes": {
+    "root": {
+      "id": "root",
+      "type": "FormGrid",
+      "layout": { "columns": 12 },
+      "children": ["accountType", "companyFields", "individualFields"]
+    },
+    "accountType": {
+      "id": "accountType",
+      "type": "core.RadioGroup",
+      "bindings": { "value": "form.values.accountType", "options": "form.options.accountTypes" }
+    },
+    "companyFields": {
+      "id": "companyFields",
+      "type": "Section",
+      "children": ["companyName", "taxId", "industry"],
+      "bindings": {
+        "visible": {
+          "op": "eq",
+          "left": { "op": "ref", "path": "form.values.accountType" },
+          "right": { "op": "lit", "value": "company" }
+        }
+      }
+    },
+    "companyName": { "id": "companyName", "type": "core.TextInput", "bindings": { "value": "form.values.companyName" } },
+    "taxId": { "id": "taxId", "type": "core.TextInput", "bindings": { "value": "form.values.taxId" } },
+    "industry": { "id": "industry", "type": "core.Select", "bindings": { "value": "form.values.industry", "options": "form.options.industries" } },
+    "individualFields": {
+      "id": "individualFields",
+      "type": "Section",
+      "children": ["ssn", "occupation"],
+      "bindings": {
+        "visible": {
+          "op": "eq",
+          "left": { "op": "ref", "path": "form.values.accountType" },
+          "right": { "op": "lit", "value": "individual" }
+        }
+      }
+    },
+    "ssn": {
+      "id": "ssn",
+      "type": "core.TextInput",
+      "bindings": { "value": "form.values.ssn" },
+      "validation": {
+        "validators": []
+      }
+    },
+    "occupation": { "id": "occupation", "type": "core.TextInput", "bindings": { "value": "form.values.occupation" } }
+  },
+  "rules": [
+    {
+      "id": "r1",
+      "target": "form.values.ssn",
+      "type": "requiredIf",
+      "expr": {
+        "op": "eq",
+        "left": { "op": "ref", "path": "form.values.accountType" },
+        "right": { "op": "lit", "value": "individual" }
+      }
+    },
+    {
+      "id": "r2",
+      "target": "companyFields",
+      "type": "visibility",
+      "expr": {
+        "op": "eq",
+        "left": { "op": "ref", "path": "form.values.accountType" },
+        "right": { "op": "lit", "value": "company" }
+      }
+    }
+  ],
+  "dataContext": {
+    "entity": "Account",
+    "mode": "create"
+  },
+  "submission": {
+    "submitOperation": { "operationId": "account.create" },
+    "mapping": [
+      { "sourcePath": "form.values.accountType", "targetPath": "body.accountType" },
+      {
+        "sourcePath": "form.values.companyName",
+        "targetPath": "body.companyName",
+        "includeIf": { "op": "eq", "left": { "op": "ref", "path": "form.values.accountType" }, "right": { "op": "lit", "value": "company" } }
+      },
+      {
+        "sourcePath": "form.values.taxId",
+        "targetPath": "body.taxId",
+        "policy": "transient",
+        "includeIf": { "op": "eq", "left": { "op": "ref", "path": "form.values.accountType" }, "right": { "op": "lit", "value": "company" } }
+      },
+      {
+        "sourcePath": "form.values.ssn",
+        "targetPath": "body.ssn",
+        "policy": "writeOnly",
+        "includeIf": { "op": "eq", "left": { "op": "ref", "path": "form.values.accountType" }, "right": { "op": "lit", "value": "individual" } }
+      }
+    ],
+    "draftPolicy": { "enabled": true, "storageKey": "account_draft" }
+  }
+}

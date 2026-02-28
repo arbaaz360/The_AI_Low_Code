@@ -1,0 +1,47 @@
+{
+  "schemaVersion": "1.0",
+  "pageFamily": "Form",
+  "rootNodeId": "root",
+  "nodes": {
+    "root": {
+      "id": "root",
+      "type": "FormGrid",
+      "layout": { "columns": 12 },
+      "children": [
+        "f1", "f2", "f3", "f4", "f5", "f6", "f7", "f8", "f9", "f10",
+        "f11", "f12", "f13", "f14", "f15", "f16", "f17", "f18", "f19", "f20"
+      ]
+    },
+    "f1": { "id": "f1", "type": "core.TextInput", "bindings": { "value": "form.values.firstName" } },
+    "f2": { "id": "f2", "type": "core.TextInput", "bindings": { "value": "form.values.lastName" } },
+    "f3": { "id": "f3", "type": "core.TextInput", "bindings": { "value": "form.values.email" } },
+    "f4": { "id": "f4", "type": "core.TextInput", "bindings": { "value": "form.values.phone" } },
+    "f5": { "id": "f5", "type": "core.TextInput", "bindings": { "value": "form.values.street" } },
+    "f6": { "id": "f6", "type": "core.TextInput", "bindings": { "value": "form.values.city" } },
+    "f7": { "id": "f7", "type": "core.TextInput", "bindings": { "value": "form.values.state" } },
+    "f8": { "id": "f8", "type": "core.TextInput", "bindings": { "value": "form.values.zip" } },
+    "f9": { "id": "f9", "type": "core.TextInput", "bindings": { "value": "form.values.country" } },
+    "f10": { "id": "f10", "type": "core.NumberInput", "bindings": { "value": "form.values.age" } },
+    "f11": { "id": "f11", "type": "core.DateInput", "bindings": { "value": "form.values.dob" } },
+    "f12": { "id": "f12", "type": "core.Select", "bindings": { "value": "form.values.gender", "options": "form.options.gender" } },
+    "f13": { "id": "f13", "type": "core.Checkbox", "bindings": { "value": "form.values.subscribe" } },
+    "f14": { "id": "f14", "type": "core.TextInput", "bindings": { "value": "form.values.website" } },
+    "f15": { "id": "f15", "type": "core.TextInput", "bindings": { "value": "form.values.company" } },
+    "f16": { "id": "f16", "type": "core.TextInput", "bindings": { "value": "form.values.jobTitle" } },
+    "f17": { "id": "f17", "type": "core.TextArea", "bindings": { "value": "form.values.notes" } },
+    "f18": { "id": "f18", "type": "core.TextInput", "bindings": { "value": "form.values.fax" } },
+    "f19": { "id": "f19", "type": "core.TextInput", "bindings": { "value": "form.values.mobile" } },
+    "f20": { "id": "f20", "type": "core.TextInput", "bindings": { "value": "form.values.referral" } }
+  },
+  "dataContext": {
+    "entity": "Contact",
+    "mode": "create"
+  },
+  "submission": {
+    "submitOperation": { "operationId": "contact.create" },
+    "mapping": [
+      { "sourcePath": "form.values.firstName", "targetPath": "body.firstName" },
+      { "sourcePath": "form.values.lastName", "targetPath": "body.lastName" }
+    ]
+  }
+}
