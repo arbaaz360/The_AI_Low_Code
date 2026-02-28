@@ -1,4 +1,4 @@
-import { useSelector } from "react-redux";
+import { useSelector, useDispatch } from "react-redux";
 import type { FormDoc, FormNode } from "@ai-low-code/engine";
 import type { FormEngine } from "@ai-low-code/engine";
 import type { WidgetRegistry } from "./types.js";
@@ -15,7 +15,15 @@ function humanize(id: string): string {
   return id.replace(/([A-Z])/g, " $1").replace(/^./, (s) => s.toUpperCase()).trim();
 }
 
+function resolveLabel(node: FormNode, mode: "runtime" | "design"): string | undefined {
+  if (typeof node.props?.label === "string") return node.props.label;
+  if (typeof node.bindings?.label === "string") return node.bindings.label;
+  if (mode === "design") return humanize(node.id);
+  return undefined;
+}
+
 export function NodeRenderer({ nodeId, doc, engine, registry, mode }: NodeRendererProps) {
+  const dispatch = useDispatch();
   const node = doc.nodes[nodeId] as FormNode | undefined;
   if (!node) return null;
 
@@ -46,7 +54,7 @@ export function NodeRenderer({ nodeId, doc, engine, registry, mode }: NodeRender
   }
 
   const handleChange = valuePath
-    ? (v: unknown) => engine.actions.setValue({ path: valuePath, value: v })
+    ? (v: unknown) => dispatch(engine.actions.setValue({ path: valuePath, value: v }))
     : undefined;
 
   const widgetProps = {
@@ -59,7 +67,7 @@ export function NodeRenderer({ nodeId, doc, engine, registry, mode }: NodeRender
     onChange: handleChange,
     disabled,
     error: errors,
-    label: (typeof node.bindings?.label === "string" ? node.bindings.label : undefined) ?? humanize(node.id),
+    label: resolveLabel(node, mode),
     options,
     mode,
   };

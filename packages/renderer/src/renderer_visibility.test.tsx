@@ -16,27 +16,27 @@ const doc = JSON.parse(
 const result = validateFormDoc(doc);
 if (!result.ok) throw new Error(JSON.stringify(result.errors));
 
-const engine = createFormEngine(doc, {
-  initialValues: {
-    form: {
-      options: {
-        accountTypes: [
-          { value: "company", label: "Company" },
-          { value: "individual", label: "Individual" },
-        ],
-      },
-    },
-  },
-});
-
 describe("renderer_visibility", () => {
   it("section becomes visible when setValue toggles rule-dependent field", () => {
+    const engine = createFormEngine(doc, {
+      initialValues: {
+        form: {
+          options: {
+            accountTypes: [
+              { value: "company", label: "Company" },
+              { value: "individual", label: "Individual" },
+            ],
+          },
+        },
+      },
+    });
+
     render(
       <PageRenderer doc={doc} engine={engine} registry={defaultRegistry} />
     );
 
     expect(screen.getByText("Company")).toBeInTheDocument();
-    expect(screen.queryByLabelText(/Company Name/i)).not.toBeInTheDocument();
+    expect(screen.queryAllByRole("textbox")).toHaveLength(0);
 
     act(() => {
       engine.store.dispatch(
@@ -44,6 +44,6 @@ describe("renderer_visibility", () => {
       );
     });
 
-    expect(screen.getByLabelText("Company Name")).toBeInTheDocument();
+    expect(screen.queryAllByRole("textbox")).toHaveLength(2);
   });
 });

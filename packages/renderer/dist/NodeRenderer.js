@@ -1,9 +1,19 @@
 import { jsxs as _jsxs, jsx as _jsx } from "react/jsx-runtime";
-import { useSelector } from "react-redux";
+import { useSelector, useDispatch } from "react-redux";
 function humanize(id) {
     return id.replace(/([A-Z])/g, " $1").replace(/^./, (s) => s.toUpperCase()).trim();
 }
+function resolveLabel(node, mode) {
+    if (typeof node.props?.label === "string")
+        return node.props.label;
+    if (typeof node.bindings?.label === "string")
+        return node.bindings.label;
+    if (mode === "design")
+        return humanize(node.id);
+    return undefined;
+}
 export function NodeRenderer({ nodeId, doc, engine, registry, mode }) {
+    const dispatch = useDispatch();
     const node = doc.nodes[nodeId];
     if (!node)
         return null;
@@ -27,7 +37,7 @@ export function NodeRenderer({ nodeId, doc, engine, registry, mode }) {
         return (_jsxs("div", { "data-nodeid": mode === "design" ? nodeId : undefined, "data-nodetype": mode === "design" ? node.type : undefined, children: ["[Unknown: ", node.type, "]"] }));
     }
     const handleChange = valuePath
-        ? (v) => engine.actions.setValue({ path: valuePath, value: v })
+        ? (v) => dispatch(engine.actions.setValue({ path: valuePath, value: v }))
         : undefined;
     const widgetProps = {
         nodeId,
@@ -39,7 +49,7 @@ export function NodeRenderer({ nodeId, doc, engine, registry, mode }) {
         onChange: handleChange,
         disabled,
         error: errors,
-        label: (typeof node.bindings?.label === "string" ? node.bindings.label : undefined) ?? humanize(node.id),
+        label: resolveLabel(node, mode),
         options,
         mode,
     };
