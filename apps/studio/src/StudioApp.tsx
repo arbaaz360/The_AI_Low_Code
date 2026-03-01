@@ -45,6 +45,7 @@ import { evalAst } from "@ai-low-code/expr";
 import type { FormDoc, FormNode } from "@ai-low-code/engine";
 import type { DomainField } from "./domainModel.js";
 import { DataSourcesPanel } from "./DataSourcesPanel.jsx";
+import { PublishPanel } from "./PublishPanel.jsx";
 import { mockFetch } from "./mockFetch.js";
 import { validateGovernance, type GovIssue } from "@ai-low-code/governance";
 import { migrateFormDoc } from "@ai-low-code/migrations";
@@ -545,6 +546,7 @@ export function StudioApp({
               />
             </Box>
             <DiagnosticsPanel errors={allDiagErrors} warnings={allDiagWarnings} onSelectNode={setSelectedNodeId} />
+            <PublishPanel doc={doc} />
           </Paper>
         </Box>
       </DndContext>

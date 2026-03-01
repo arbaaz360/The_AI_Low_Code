@@ -11,3 +11,8 @@ export interface GovernanceResult {
   warnings: GovIssue[];
   ok: boolean;
 }
+
+export interface GovernanceContext {
+  channel?: "preview" | "prod";
+  allowedRestHosts?: string[];
+}

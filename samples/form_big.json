@@ -1,11 +1,11 @@
 {
-  "schemaVersion": "1.0",
+  "schemaVersion": "1.1",
   "pageFamily": "Form",
   "rootNodeId": "root",
   "nodes": {
     "root": {
       "id": "root",
-      "type": "FormGrid",
+      "type": "layout.FormGrid",
       "layout": {
         "columns": 12
       },
@@ -24,7 +24,7 @@
     },
     "section_0": {
       "id": "section_0",
-      "type": "Section",
+      "type": "layout.Section",
       "props": {
         "title": "Section 1"
       },
@@ -114,7 +114,7 @@
     },
     "section_1": {
       "id": "section_1",
-      "type": "Section",
+      "type": "layout.Section",
       "props": {
         "title": "Section 2"
       },
@@ -204,7 +204,7 @@
     },
     "section_2": {
       "id": "section_2",
-      "type": "Section",
+      "type": "layout.Section",
       "props": {
         "title": "Section 3"
       },
@@ -294,7 +294,7 @@
     },
     "section_3": {
       "id": "section_3",
-      "type": "Section",
+      "type": "layout.Section",
       "props": {
         "title": "Section 4"
       },
@@ -384,7 +384,7 @@
     },
     "section_4": {
       "id": "section_4",
-      "type": "Section",
+      "type": "layout.Section",
       "props": {
         "title": "Section 5"
       },
@@ -474,7 +474,7 @@
     },
     "section_5": {
       "id": "section_5",
-      "type": "Section",
+      "type": "layout.Section",
       "props": {
         "title": "Section 6"
       },
@@ -564,7 +564,7 @@
     },
     "section_6": {
       "id": "section_6",
-      "type": "Section",
+      "type": "layout.Section",
       "props": {
         "title": "Section 7"
       },
@@ -654,7 +654,7 @@
     },
     "section_7": {
       "id": "section_7",
-      "type": "Section",
+      "type": "layout.Section",
       "props": {
         "title": "Section 8"
       },
@@ -744,7 +744,7 @@
     },
     "section_8": {
       "id": "section_8",
-      "type": "Section",
+      "type": "layout.Section",
       "props": {
         "title": "Section 9"
       },
@@ -834,7 +834,7 @@
     },
     "section_9": {
       "id": "section_9",
-      "type": "Section",
+      "type": "layout.Section",
       "props": {
         "title": "Section 10"
       },

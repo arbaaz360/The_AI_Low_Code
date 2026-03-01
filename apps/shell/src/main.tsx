@@ -30,6 +30,7 @@ import type { FormDoc } from "@ai-low-code/engine";
 import { mockFetch } from "./mockFetch.js";
 import { validateGovernance } from "@ai-low-code/governance";
 import { migrateFormDoc } from "@ai-low-code/migrations";
+import { RemoteShell } from "./RemoteShell.jsx";
 
 import formRules from "../../../samples/form_rules.json";
 import formBasic from "../../../samples/form_basic.json";
@@ -332,6 +333,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<ShellApp />} />
+          <Route path="/remote" element={<RemoteShell />} />
           <Route path="/done" element={<DonePage />} />
         </Routes>
       </BrowserRouter>

@@ -70,9 +70,23 @@ function validateActions(actions, issues, basePath, nodeId) {
             validateActions(a.onSuccess, issues, `${aPath}.onSuccess`, nodeId);
     }
 }
-export function validateGovernance(doc) {
+function isUrlAllowed(url, allowedHosts) {
+    if (url.startsWith("/") || url.startsWith("./") || url.startsWith("../"))
+        return true;
+    if (url.startsWith("/__mock__/"))
+        return false;
+    try {
+        const parsed = new URL(url);
+        return allowedHosts.some((h) => parsed.hostname.toLowerCase() === h.toLowerCase());
+    }
+    catch {
+        return true;
+    }
+}
+export function validateGovernance(doc, context) {
     const errors = [];
     const warnings = [];
+    const isProd = context?.channel === "prod";
     if (!doc || typeof doc !== "object") {
         errors.push({ severity: "error", code: "GOV_INVALID_DOC", message: "Document is not an object" });
         return { errors, warnings, ok: false };
@@ -82,6 +96,20 @@ export function validateGovernance(doc) {
         errors.push({ severity: "error", code: "GOV_DOC_TOO_LARGE", message: `Document is ${docBytes} bytes (max ${MAX_DOC_BYTES})` });
     }
     const d = doc;
+    if (Array.isArray(d.dataSources)) {
+        for (const ds of d.dataSources) {
+            const dsId = ds.id ?? "";
+            const kind = ds.kind ?? "";
+            if (isProd && kind === "mock") {
+                errors.push({ severity: "error", code: "GOV_DS_MOCK_IN_PROD", message: `Mock datasource "${dsId}" not allowed in prod`, path: `dataSources.${dsId}` });
+            }
+            if (isProd && kind === "rest" && typeof ds.url === "string") {
+                if (!isUrlAllowed(ds.url, context?.allowedRestHosts ?? [])) {
+                    errors.push({ severity: "error", code: "GOV_DS_REST_UNSAFE", message: `REST datasource "${dsId}" URL "${ds.url}" not allowed in prod`, path: `dataSources.${dsId}` });
+                }
+            }
+        }
+    }
     const nodes = d.nodes ?? {};
     const nodeEntries = Object.entries(nodes);
     if (nodeEntries.length > MAX_NODES) {

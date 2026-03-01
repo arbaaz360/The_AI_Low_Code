@@ -15,6 +15,7 @@
     "@ai-low-code/engine": "*",
     "@ai-low-code/governance": "*",
     "@ai-low-code/migrations": "*",
+    "@ai-low-code/publish-client": "*",
     "@ai-low-code/renderer": "*",
     "@ai-low-code/schema": "*",
     "@ai-low-code/theme": "*",

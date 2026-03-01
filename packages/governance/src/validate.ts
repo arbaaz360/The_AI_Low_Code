@@ -1,4 +1,4 @@
-import type { GovIssue, GovernanceResult } from "./types.js";
+import type { GovIssue, GovernanceResult, GovernanceContext } from "./types.js";
 import {
   CANONICAL_WIDGET_TYPES,
   LEGACY_WIDGET_ALIASES,
@@ -124,9 +124,21 @@ function validateActions(actions: ActionLike[], issues: GovIssue[], basePath: st
   }
 }
 
-export function validateGovernance(doc: unknown): GovernanceResult {
+function isUrlAllowed(url: string, allowedHosts: string[]): boolean {
+  if (url.startsWith("/") || url.startsWith("./") || url.startsWith("../")) return true;
+  if (url.startsWith("/__mock__/")) return false;
+  try {
+    const parsed = new URL(url);
+    return allowedHosts.some((h) => parsed.hostname.toLowerCase() === h.toLowerCase());
+  } catch {
+    return true;
+  }
+}
+
+export function validateGovernance(doc: unknown, context?: GovernanceContext): GovernanceResult {
   const errors: GovIssue[] = [];
   const warnings: GovIssue[] = [];
+  const isProd = context?.channel === "prod";
 
   if (!doc || typeof doc !== "object") {
     errors.push({ severity: "error", code: "GOV_INVALID_DOC", message: "Document is not an object" });
@@ -139,6 +151,21 @@ export function validateGovernance(doc: unknown): GovernanceResult {
   }
 
   const d = doc as DocLike;
+
+  if (Array.isArray((d as Record<string, unknown>).dataSources)) {
+    for (const ds of (d as Record<string, unknown>).dataSources as Array<Record<string, unknown>>) {
+      const dsId = (ds.id as string) ?? "";
+      const kind = (ds.kind as string) ?? "";
+      if (isProd && kind === "mock") {
+        errors.push({ severity: "error", code: "GOV_DS_MOCK_IN_PROD", message: `Mock datasource "${dsId}" not allowed in prod`, path: `dataSources.${dsId}` });
+      }
+      if (isProd && kind === "rest" && typeof ds.url === "string") {
+        if (!isUrlAllowed(ds.url, context?.allowedRestHosts ?? [])) {
+          errors.push({ severity: "error", code: "GOV_DS_REST_UNSAFE", message: `REST datasource "${dsId}" URL "${ds.url}" not allowed in prod`, path: `dataSources.${dsId}` });
+        }
+      }
+    }
+  }
   const nodes = d.nodes ?? {};
   const nodeEntries = Object.entries(nodes);
 

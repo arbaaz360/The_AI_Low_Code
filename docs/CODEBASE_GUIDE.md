@@ -22,9 +22,11 @@ This document is a comprehensive, beginner-friendly walkthrough of the entire co
    - 5.9 [packages/theme — Shared Styling](#59-packagestheme)
    - 5.10 [packages/governance — Security Validation](#510-packagesgovernance)
    - 5.11 [packages/migrations — Schema Upgrades](#511-packagesmigrations)
+   - 5.12 [packages/publish-client — API Client](#512-packagespublish-client)
 6. [The Apps](#6-the-apps)
    - 6.1 [apps/studio — The Form Designer](#61-appsstudio)
    - 6.2 [apps/shell — The Runtime Host](#62-appsshell)
+   - 6.3 [apps/metadata-api — Publish Spine (ASP.NET Core + MongoDB)](#63-appsmetadata-api)
 7. [Data Flow — End to End](#7-data-flow)
 8. [The FormDoc — Understanding the JSON](#8-the-formdoc)
 9. [How Actions Work](#9-how-actions-work)
@@ -37,8 +39,10 @@ This document is a comprehensive, beginner-friendly walkthrough of the entire co
 16. [Migrations — packages/migrations](#16-migrations)
 17. [The Load Pipeline — How a Doc Gets Rendered](#17-the-load-pipeline)
 18. [Client-Side Navigation](#18-client-side-navigation)
-19. [Testing Strategy](#19-testing-strategy)
-20. [Glossary](#20-glossary)
+19. [The Publish Spine — Versioning and Release Channels](#19-the-publish-spine)
+20. [Running the Full Stack Locally](#20-running-the-full-stack-locally)
+21. [Testing Strategy](#21-testing-strategy)
+22. [Glossary](#22-glossary)
 
 ---
 
@@ -111,10 +115,12 @@ The_AI_Low_Code_Platform/
 │   ├── studio-core/        ← Command pattern for editing FormDocs
 │   ├── theme/              ← Shared MUI theme
 │   ├── governance/         ← Security validation (allowlists)
-│   └── migrations/         ← Schema version upgrades
+│   ├── migrations/         ← Schema version upgrades
+│   └── publish-client/     ← Frontend API client for publish spine
 ├── apps/                   ← Applications
 │   ├── studio/             ← Form designer (Vite + React)
-│   └── shell/              ← Runtime host (Vite + React)
+│   ├── shell/              ← Runtime host (Vite + React)
+│   └── metadata-api/       ← Publish API (ASP.NET Core + MongoDB)
 ├── samples/                ← Example FormDoc JSON files
 │   ├── form_rules.json     ← Conditional form (show/hide fields)
 │   ├── form_basic.json     ← Simple form with 20 fields
@@ -672,6 +678,38 @@ See [Section 16](#16-migrations) for how to add new migrations.
 
 ---
 
+### 5.12 `packages/publish-client`
+
+**Purpose**: A TypeScript fetch client for the Publish Spine API (metadata-api). Used by both Studio (to publish) and Shell (to load remote forms).
+
+**Key file**: `src/client.ts`
+
+```typescript
+import { createPublishClient } from "@ai-low-code/publish-client";
+
+const client = createPublishClient({
+  baseUrl: "http://localhost:5016",
+  tenantId: "default",    // optional, defaults to "default"
+});
+
+// Publish a new version
+const pub = await client.publishVersion("myapp", formDoc, "Initial release");
+
+// Promote to a channel
+await client.promoteRelease("myapp", "preview", pub.versionId);
+
+// Fetch with ETag caching (returns { data, etag, fromCache })
+const release = await client.getRelease("myapp", "preview");
+const version = await client.getVersion("myapp", release.data.versionId);
+
+// List versions for rollback UI
+const versions = await client.listVersions("myapp");
+```
+
+**Features**: Automatic ETag caching (304 responses return cached data), structured error handling (`PublishClientError` with validation details), configurable `fetchImpl` for testing.
+
+---
+
 ## 6. The Apps
 
 ### 6.1 `apps/studio` — The Form Designer
@@ -755,6 +793,42 @@ See [Section 16](#16-migrations) for how to add new migrations.
 5. `<PageRenderer doc={doc} engine={engine} registry={defaultRegistry} actionRunner={runner} />` renders the form
 6. On mount, `PageOnLoad` runs `pageEvents.onLoad` actions (e.g., `CallDataSource` to fetch dropdown options)
 7. User interactions trigger event handlers, which run through the ActionRunner
+
+---
+
+### 6.3 `apps/metadata-api` — The Publish Spine
+
+**Technology**: ASP.NET Core (.NET 10) + MongoDB
+
+**Purpose**: Stores immutable FormDoc versions and mutable release channel pointers. This is the "publish spine" that connects Studio (design-time) to Shell (runtime) via an API.
+
+**How to run**: See [Section 20](#20-running-the-full-stack-locally).
+
+**MongoDB Collections**:
+
+| Collection | Purpose |
+|-----------|---------|
+| `app_versions` | Immutable FormDoc versions (one per publish) |
+| `app_releases` | Mutable channel pointers (`preview`, `prod`) pointing to a version |
+| `audit_events` | Audit log of all publish/promote/fetch operations |
+
+**API Endpoints**:
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/v1/apps/{appKey}/versions` | Publish a new version (migrate → schema validate → governance validate → store) |
+| `GET` | `/v1/apps/{appKey}/versions` | List versions (newest first, for rollback UI) |
+| `GET` | `/v1/apps/{appKey}/versions/{versionId}` | Get version doc (ETag: contentHash, Cache-Control: immutable) |
+| `PUT` | `/v1/apps/{appKey}/releases/{channel}` | Promote a version to preview/prod |
+| `GET` | `/v1/apps/{appKey}/releases/{channel}` | Get release pointer (ETag: W/"versionId") |
+| `GET` | `/health` | Health check |
+
+**Key design decisions**:
+- Versions are **immutable** — once published, a version document never changes.
+- Release pointers are **mutable** — promoting a different version updates the pointer.
+- **Deduplication**: If you publish the same content twice, you get back the existing versionId (matching by SHA-256 hash of canonical JSON).
+- **ETag/304**: Both version and release endpoints support ETag + If-None-Match for client-side caching.
+- Server runs the full validation pipeline (migrate → schema → governance) before accepting a publish.
 
 ---
 
@@ -1264,7 +1338,169 @@ In design mode, the Navigate action is suppressed entirely (no side effects).
 
 ---
 
-## 19. Testing Strategy
+## 19. The Publish Spine — Versioning and Release Channels
+
+The Publish Spine is the system that connects Studio (where forms are designed) to Shell (where forms are rendered in production). It consists of three parts:
+
+1. **`apps/metadata-api`** — An ASP.NET Core API backed by MongoDB
+2. **`packages/publish-client`** — A TypeScript client for the API
+3. **Studio Publish UI + Shell Remote mode** — Frontend integration
+
+### Tenant Isolation
+
+All API routes are scoped by `tenantId`. The canonical route format is:
+
+```
+/v1/tenants/{tenantId}/apps/{appKey}/versions
+/v1/tenants/{tenantId}/apps/{appKey}/releases/{channel}
+```
+
+Old non-tenant routes (`/v1/apps/{appKey}/...`) still work but map to `tenantId="default"` and return `X-Deprecated-Route: true` header.
+
+Mongo documents include `tenantId` as a partition key. All indexes include `tenantId` as the first field.
+
+### How Publishing Works
+
+```
+Studio                      API (metadata-api)                MongoDB
+  │                              │                              │
+  │ POST /tenants/T/apps/A/versions                             │
+  │ { doc, notes }  ───────────> │                              │
+  │ X-Correlation-Id: abc123     │                              │
+  │                              │ 1. Migrate doc               │
+  │                              │ 2. Schema validate           │
+  │                              │ 3. Governance validate       │
+  │                              │ 4. Compute SHA-256 hash      │
+  │                              │ 5. Check for duplicate  ────>│ app_versions
+  │                              │ 6. Insert if new       ────> │
+  │ <──── { versionId, hash }    │ 7. Log audit event     ────> │ audit_events
+  │                              │                              │
+  │ GET /tenants/T/apps/A/releases/preview                      │
+  │ <──── { versionId } + ETag   │                              │
+  │                              │                              │
+  │ PUT /tenants/T/apps/A/releases/preview                      │
+  │ { versionId }                │                              │
+  │ If-Match: W/"old-vId"  ────> │                              │
+  │                              │ Check ETag matches   ────── >│ app_releases
+  │                              │ If mismatch → 409 Conflict   │
+  │                              │ If prod → governance check   │
+  │                              │ Upsert pointer         ────> │
+  │ <──── { channel, versionId } │                              │
+```
+
+### Optimistic Concurrency (If-Match)
+
+Release pointer updates use ETags for optimistic concurrency:
+- `GET /releases/{channel}` returns `ETag: W/"{versionId}"`
+- `PUT /releases/{channel}` requires `If-Match` header matching the current ETag
+- If the pointer moved since the client last read it, the API returns **409 Conflict** with the current pointer
+- First creation (no existing pointer) does not require `If-Match`
+- `publish-client` handles this automatically: it GETs the current pointer, extracts the ETag, and sends `If-Match` on PUT
+
+### Channel-Aware Governance
+
+Governance validation is channel-aware when promoting to **prod**:
+- `mock` datasources are **rejected** in prod (allowed in preview)
+- `rest` datasources are rejected unless the URL is **relative** (same-origin) or the host is in the **allowlist** (configured in `appsettings.json` under `Governance:AllowedRestHosts`)
+- On `POST /versions`: validation runs under neutral/preview policy
+- On `PUT /releases/prod`: governance re-runs under **prod strict policy**
+
+### Correlation IDs
+
+Every API request includes a `X-Correlation-Id` header:
+- If the client sends one, the API preserves it
+- If absent, the API generates one
+- The response always includes the header
+- The ID is persisted into `audit_events.meta.correlationId`
+- `publish-client` generates a correlation ID per call automatically
+
+### How Shell Loads a Remote Form
+
+```
+Shell (/remote?tenantId=default&appKey=myapp&channel=preview)
+  │
+  │ GET /tenants/default/apps/myapp/releases/preview
+  │ (with If-None-Match)  ───────> API
+  │ <──── { versionId } (or 304)
+  │
+  │ GET /tenants/default/apps/myapp/versions/{versionId}
+  │ (with If-None-Match)  ───────> API
+  │ <──── FormDoc JSON (or 304, immutable cache)
+  │
+  │ Local pipeline:
+  │   migrate → schema validate → governance validate → render
+```
+
+### Rollback
+
+Rollback is simply promoting an older version to a channel. The Shell Remote mode shows a version history list — clicking "Promote" on an older version moves the channel pointer back.
+
+### Key Concepts
+
+| Concept | Explanation |
+|---------|-------------|
+| **tenantId** | Partition key for multi-tenant isolation. Defaults to "default". |
+| **appKey** | Identifies the form application (e.g., "expense-form") within a tenant. |
+| **versionId** | A ULID (time-sortable unique ID) assigned when a version is published |
+| **channel** | Either "preview" or "prod" — a mutable pointer to a versionId |
+| **contentHash** | SHA-256 of the canonical JSON — used for dedup and ETag |
+| **immutable versions** | Once published, a version never changes. This enables aggressive caching. |
+| **ETag caching** | Release endpoint: weak ETag (W/"versionId"). Version endpoint: strong ETag ("contentHash"). |
+| **If-Match** | Optimistic concurrency for release promotions. Prevents silent overwrites. |
+| **X-Correlation-Id** | Traces a request through audit logs for debugging and compliance. |
+
+---
+
+## 20. Running the Full Stack Locally
+
+### Prerequisites
+- Node.js 18+
+- .NET 10 SDK
+- MongoDB running on localhost:27017
+
+### Start Everything
+
+**Terminal 1 — MongoDB** (if not running as a service):
+```bash
+mongod --dbpath /path/to/data
+```
+
+**Terminal 2 — Metadata API**:
+```bash
+cd apps/metadata-api
+dotnet run
+# Runs on http://localhost:5016
+```
+
+**Terminal 3 — Studio**:
+```bash
+npm run dev --workspace=@ai-low-code/studio
+# Runs on http://localhost:5173 (or 5174)
+```
+
+**Terminal 4 — Shell**:
+```bash
+npm run dev --workspace=@ai-low-code/shell
+# Runs on http://localhost:5175 (or similar)
+```
+
+### Usage Flow
+
+1. **Design** a form in Studio (http://localhost:5173)
+2. **Publish** using the Publish panel in the right sidebar (set Tenant ID, Channel, Notes)
+3. **View** in Shell Remote mode: `http://localhost:5175/remote?tenantId=default&appKey=default&channel=preview`
+4. **Rollback** by promoting an older version in the version history list
+
+### Shell Modes
+
+| Mode | URL | How it works |
+|------|-----|-------------|
+| **Local** | `http://localhost:5175/` | Sample selector + file upload. No API needed. |
+| **Remote** | `http://localhost:5175/remote?tenantId=...&appKey=...&channel=...` | Fetches from metadata-api. |
+
+---
+
+## 21. Testing Strategy
 
 The project uses **Vitest** for testing and **React Testing Library** for component tests.
 
@@ -1276,8 +1512,9 @@ The project uses **Vitest** for testing and **React Testing Library** for compon
 | `datasources` | Mock delay/failRate, REST fetch, abort signals | 7 |
 | `schema` | All sample docs validate, invalid docs produce errors, event schemas | 12 |
 | `renderer` | Rendering, visibility, label resolution, action integration, onLoad | 12 |
-| `governance` | Widget allowlist, prop allowlist, binding paths, action paths, expression limits, doc size | 14 |
+| `governance` | Widget allowlist, prop allowlist, binding paths, action paths, expression limits, doc size, channel-aware prod checks | 20 |
 | `migrations` | Legacy widget type migration, immutability, version handling | 5 |
+| `publish-client` | Publish, promote, ETag caching, If-Match concurrency, 409 conflict, tenant routes, correlation IDs | 11 |
 | `studio-core` | Commands, constraints, invariants, drop resolution, layout | 66 |
 | `studio` | Smoke tests, add/delete, drag-and-drop, inspector editing | 19 |
 
@@ -1287,7 +1524,7 @@ The project uses **Vitest** for testing and **React Testing Library** for compon
 
 ---
 
-## 20. Glossary
+## 22. Glossary
 
 | Term | Definition |
 |------|-----------|
@@ -1313,3 +1550,11 @@ The project uses **Vitest** for testing and **React Testing Library** for compon
 | **Migration** | An automatic upgrade from one FormDoc schemaVersion to the next |
 | **Load Pipeline** | The sequence: Migrate → Schema Validate → Governance Validate → Render |
 | **react-router** | Client-side routing library used in Shell for real page navigation |
+| **Publish Spine** | The API + client + UI system for versioning and deploying FormDocs |
+| **appKey** | Identifies a form application in the publish spine (multi-tenant ready) |
+| **versionId** | A ULID assigned to an immutable published FormDoc version |
+| **Channel** | A release target ("preview" or "prod") — a mutable pointer to a versionId |
+| **contentHash** | SHA-256 of canonical JSON — used for dedup, ETag, and cache validation |
+| **ETag** | HTTP caching header — versions use strong ETags, releases use weak ETags |
+| **metadata-api** | ASP.NET Core Web API backed by MongoDB for the publish spine |
+| **PublishClient** | TypeScript client for the metadata-api with ETag caching |

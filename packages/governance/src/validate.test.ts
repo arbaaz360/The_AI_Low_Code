@@ -185,4 +185,56 @@ describe("validateGovernance", () => {
     const result = validateGovernance(doc);
     expect(result.errors.some((e) => e.code === "GOV_ACTION_BAD_PATH")).toBe(true);
   });
+
+  describe("channel-aware governance (prod)", () => {
+    it("rejects mock datasource in prod", () => {
+      const doc = minDoc({
+        dataSources: [{ id: "ds1", kind: "mock", response: [] }],
+      });
+      const result = validateGovernance(doc, { channel: "prod" });
+      expect(result.ok).toBe(false);
+      expect(result.errors.some((e) => e.code === "GOV_DS_MOCK_IN_PROD")).toBe(true);
+    });
+
+    it("allows mock datasource in preview", () => {
+      const doc = minDoc({
+        dataSources: [{ id: "ds1", kind: "mock", response: [] }],
+      });
+      const result = validateGovernance(doc, { channel: "preview" });
+      expect(result.errors.some((e) => e.code === "GOV_DS_MOCK_IN_PROD")).toBe(false);
+    });
+
+    it("allows mock datasource with no context", () => {
+      const doc = minDoc({
+        dataSources: [{ id: "ds1", kind: "mock", response: [] }],
+      });
+      const result = validateGovernance(doc);
+      expect(result.errors.some((e) => e.code === "GOV_DS_MOCK_IN_PROD")).toBe(false);
+    });
+
+    it("rejects unsafe REST URL in prod", () => {
+      const doc = minDoc({
+        dataSources: [{ id: "ds1", kind: "rest", method: "GET", url: "https://evil.com/data" }],
+      });
+      const result = validateGovernance(doc, { channel: "prod", allowedRestHosts: ["api.example.com"] });
+      expect(result.ok).toBe(false);
+      expect(result.errors.some((e) => e.code === "GOV_DS_REST_UNSAFE")).toBe(true);
+    });
+
+    it("allows relative REST URL in prod", () => {
+      const doc = minDoc({
+        dataSources: [{ id: "ds1", kind: "rest", method: "GET", url: "/api/data" }],
+      });
+      const result = validateGovernance(doc, { channel: "prod", allowedRestHosts: [] });
+      expect(result.errors.some((e) => e.code === "GOV_DS_REST_UNSAFE")).toBe(false);
+    });
+
+    it("allows allowlisted REST host in prod", () => {
+      const doc = minDoc({
+        dataSources: [{ id: "ds1", kind: "rest", method: "GET", url: "https://api.example.com/data" }],
+      });
+      const result = validateGovernance(doc, { channel: "prod", allowedRestHosts: ["api.example.com"] });
+      expect(result.errors.some((e) => e.code === "GOV_DS_REST_UNSAFE")).toBe(false);
+    });
+  });
 });

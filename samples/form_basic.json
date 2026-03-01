@@ -1,11 +1,11 @@
 {
-  "schemaVersion": "1.0",
+  "schemaVersion": "1.1",
   "pageFamily": "Form",
   "rootNodeId": "root",
   "nodes": {
     "root": {
       "id": "root",
-      "type": "FormGrid",
+      "type": "layout.FormGrid",
       "layout": { "columns": 12 },
       "children": [
         "f1", "f2", "f3", "f4", "f5", "f6", "f7", "f8", "f9", "f10",

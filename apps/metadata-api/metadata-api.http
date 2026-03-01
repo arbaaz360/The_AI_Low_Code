@@ -1,0 +1,6 @@
+@metadata_api_HostAddress = http://localhost:5016
+
+GET {{metadata_api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

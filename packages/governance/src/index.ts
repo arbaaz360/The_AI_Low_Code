@@ -1,4 +1,4 @@
-export type { GovIssue, GovernanceResult } from "./types.js";
+export type { GovIssue, GovernanceResult, GovernanceContext } from "./types.js";
 export { validateGovernance } from "./validate.js";
 export {
   CANONICAL_WIDGET_TYPES,

@@ -1,11 +1,11 @@
 {
-  "schemaVersion": "1.0",
+  "schemaVersion": "1.1",
   "pageFamily": "Form",
   "rootNodeId": "root",
   "nodes": {
     "root": {
       "id": "root",
-      "type": "FormGrid",
+      "type": "layout.FormGrid",
       "layout": { "columns": 12 },
       "children": ["accountType", "companyFields", "individualFields"]
     },
@@ -16,7 +16,7 @@
     },
     "companyFields": {
       "id": "companyFields",
-      "type": "Section",
+      "type": "layout.Section",
       "children": ["companyName", "taxId", "industry"],
       "bindings": {
         "visible": {
@@ -31,7 +31,7 @@
     "industry": { "id": "industry", "type": "core.Select", "bindings": { "value": "form.values.industry", "options": "form.options.industries" } },
     "individualFields": {
       "id": "individualFields",
-      "type": "Section",
+      "type": "layout.Section",
       "children": ["ssn", "occupation"],
       "bindings": {
         "visible": {

@@ -1,3 +1,3 @@
-import type { GovernanceResult } from "./types.js";
-export declare function validateGovernance(doc: unknown): GovernanceResult;
+import type { GovernanceResult, GovernanceContext } from "./types.js";
+export declare function validateGovernance(doc: unknown, context?: GovernanceContext): GovernanceResult;
 //# sourceMappingURL=validate.d.ts.map
