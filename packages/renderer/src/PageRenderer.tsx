@@ -1,11 +1,12 @@
 import { useEffect, useRef } from "react";
-import { Provider } from "react-redux";
+import { Provider, useSelector } from "react-redux";
+import Alert from "@mui/material/Alert";
 import { NodeRenderer } from "./NodeRenderer.jsx";
 import { ActionRunnerContext } from "./ActionRunnerContext.js";
 import type { Action } from "@ai-low-code/actions";
 import type { ActionRunner } from "@ai-low-code/actions";
 import type { RendererProps } from "./types.js";
-import type { FormDoc } from "@ai-low-code/engine";
+import type { FormDoc, FormEngine } from "@ai-low-code/engine";
 
 function PageOnLoad({
   doc,
@@ -34,6 +35,13 @@ function PageOnLoad({
   return null;
 }
 
+function FormErrorBanner({ engine }: { engine: FormEngine }) {
+  const selector = engine.selectors.selectFormError;
+  const formError = useSelector(selector ?? (() => undefined));
+  if (!formError) return null;
+  return <Alert severity="error" sx={{ mb: 2 }}>{formError}</Alert>;
+}
+
 export function PageRenderer({ doc, engine, registry, mode = "runtime", actionRunner }: RendererProps) {
   const rootId = doc.rootNodeId;
   const content = (
@@ -41,6 +49,7 @@ export function PageRenderer({ doc, engine, registry, mode = "runtime", actionRu
       {actionRunner && (
         <PageOnLoad doc={doc} mode={mode ?? "runtime"} actionRunner={actionRunner} />
       )}
+      <FormErrorBanner engine={engine} />
       <div data-renderer-mode={mode}>
         <NodeRenderer
           nodeId={rootId}

@@ -284,6 +284,7 @@ export function Inspector({
       nodeType={node.type}
       events={node.events as Record<string, unknown[]> | undefined}
       onUpdateEvents={(events) => onUpdateEvents(selectedNodeId, events)}
+      dataSources={dataSources}
     />
   );
 

@@ -11,6 +11,7 @@ export function Select({
   value,
   onChange,
   disabled,
+  loading,
   label,
   options,
   mode,
@@ -21,15 +22,19 @@ export function Select({
     ? (options as { options: { value: unknown; label: string }[] }).options
     : [];
 
+  const isDisabled = disabled || loading;
+
   return (
-    <FormControl fullWidth disabled={disabled}>
+    <FormControl fullWidth disabled={isDisabled}>
       <InputLabel>{label ?? ""}</InputLabel>
       <MuiSelect
         data-nodeid={mode === "design" ? nodeId : undefined}
         data-nodetype={mode === "design" ? nodeType : undefined}
-        value={value ?? ""}
+        value={loading ? "" : (value ?? "")}
         onChange={(e) => onChange?.(e.target.value)}
         label={label ?? ""}
+        displayEmpty={loading}
+        renderValue={loading ? () => "Loading\u2026" : undefined}
       >
         {opts.map((opt: unknown, i: number) => {
           const o = typeof opt === "object" && opt && "value" in (opt as object)

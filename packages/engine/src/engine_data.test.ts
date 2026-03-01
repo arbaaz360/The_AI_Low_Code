@@ -7,6 +7,10 @@ import {
   dataRequestSucceeded,
   dataRequestFailed,
   dataSetByKey,
+  applyFieldErrors,
+  clearFieldErrors,
+  setFormError,
+  setSubmitting,
 } from "./slice.js";
 import type { FormDoc } from "./types.js";
 
@@ -76,5 +80,37 @@ describe("Engine data slice", () => {
     store.dispatch(dataSetByKey({ key: "myList", value: [1] }));
     store.dispatch(initForm({ formDoc: minDoc }));
     expect(store.getState().engine.data.byKey).toEqual({});
+  });
+
+  it("applyFieldErrors merges into errorsByPath", () => {
+    const store = makeStore();
+    store.dispatch(applyFieldErrors({ fieldErrors: { "form.values.amount": "Must be > 0" } }));
+    expect(store.getState().engine.errorsByPath["form.values.amount"]).toEqual(["Must be > 0"]);
+  });
+
+  it("clearFieldErrors resets errorsByPath and formError", () => {
+    const store = makeStore();
+    store.dispatch(applyFieldErrors({ fieldErrors: { "form.values.x": "err" } }));
+    store.dispatch(setFormError({ message: "bad" }));
+    store.dispatch(clearFieldErrors());
+    expect(store.getState().engine.errorsByPath).toEqual({});
+    expect(store.getState().engine.formError).toBeUndefined();
+  });
+
+  it("setFormError sets and clears formError", () => {
+    const store = makeStore();
+    store.dispatch(setFormError({ message: "Server error" }));
+    expect(store.getState().engine.formError).toBe("Server error");
+    store.dispatch(setFormError({ message: undefined }));
+    expect(store.getState().engine.formError).toBeUndefined();
+  });
+
+  it("setSubmitting toggles submitting", () => {
+    const store = makeStore();
+    expect(store.getState().engine.submitting).toBe(false);
+    store.dispatch(setSubmitting(true));
+    expect(store.getState().engine.submitting).toBe(true);
+    store.dispatch(setSubmitting(false));
+    expect(store.getState().engine.submitting).toBe(false);
   });
 });

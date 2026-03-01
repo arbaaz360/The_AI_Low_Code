@@ -14,7 +14,7 @@ function isAllowedPath(path: string): boolean {
   return ALLOWED_PATH_PREFIXES.some((p) => path.startsWith(p));
 }
 
-const SIDE_EFFECT_TYPES = new Set(["Toast", "Navigate", "ValidateForm", "CallDataSource"]);
+const SIDE_EFFECT_TYPES = new Set(["Toast", "Navigate", "ValidateForm", "CallDataSource", "SubmitForm"]);
 
 export interface ActionRunner {
   run(actions: Action[] | undefined, ctx: ActionContext): Promise<ActionError[]>;
@@ -29,6 +29,11 @@ export function createActionRunner(deps: ActionRunnerDeps): ActionRunner {
     dataRequestSucceededCreator,
     dataRequestFailedCreator,
     dataSetByKeyCreator,
+    applyFieldErrorsCreator,
+    clearFieldErrorsCreator,
+    setFormErrorCreator,
+    setSubmittingCreator,
+    buildSubmitRequest,
   } = deps;
 
   let requestCounter = 0;
@@ -133,7 +138,7 @@ export function createActionRunner(deps: ActionRunnerDeps): ActionRunner {
             telemetry?.onActionError?.(action, ctx, err);
             return err;
           }
-          const requestId = action.requestKey ?? `ds_req_${++requestCounter}`;
+          const requestId = action.requestKey ?? action.resultKey;
           if (dataRequestStartedCreator) {
             dispatch(dataRequestStartedCreator({ requestId, dataSourceId: action.dataSourceId }));
           }
@@ -153,6 +158,84 @@ export function createActionRunner(deps: ActionRunnerDeps): ActionRunner {
             }
             const err: ActionError = {
               actionType: "CallDataSource",
+              message: errorMsg,
+              nodeId: ctx.nodeId,
+              details: e,
+            };
+            telemetry?.onActionError?.(action, ctx, err);
+            return err;
+          }
+          break;
+        }
+
+        case "SubmitForm": {
+          if (!dataSourceClient || !buildSubmitRequest) {
+            const err: ActionError = {
+              actionType: "SubmitForm",
+              message: "SubmitForm requires dataSourceClient and buildSubmitRequest",
+              nodeId: ctx.nodeId,
+            };
+            telemetry?.onActionError?.(action, ctx, err);
+            return err;
+          }
+          const resultKey = action.resultKey ?? "submit";
+          const requestId = action.requestKey ?? resultKey;
+
+          if (clearFieldErrorsCreator) dispatch(clearFieldErrorsCreator());
+          if (setFormErrorCreator) dispatch(setFormErrorCreator({ message: undefined }));
+
+          validateAll?.();
+          const stateAfterValidation = getState();
+          const errorsAfterValidation = stateAfterValidation.engine.errorsByPath;
+          const hasErrors = Object.keys(errorsAfterValidation).some(
+            (k) => errorsAfterValidation[k] && errorsAfterValidation[k].length > 0
+          );
+          if (hasErrors) {
+            if (setFormErrorCreator) dispatch(setFormErrorCreator({ message: "Please fix the errors above before submitting." }));
+            const err: ActionError = {
+              actionType: "SubmitForm",
+              message: "Validation failed",
+              nodeId: ctx.nodeId,
+            };
+            telemetry?.onActionError?.(action, ctx, err);
+            return err;
+          }
+
+          const payload = buildSubmitRequest();
+          if (setSubmittingCreator) dispatch(setSubmittingCreator(true));
+          if (dataRequestStartedCreator) {
+            dispatch(dataRequestStartedCreator({ requestId, dataSourceId: action.dataSourceId }));
+          }
+
+          try {
+            const result = await dataSourceClient.execute({ dataSourceId: action.dataSourceId, args: payload });
+            if (dataRequestSucceededCreator) {
+              dispatch(dataRequestSucceededCreator({ requestId, resultKey, result }));
+            }
+            if (setSubmittingCreator) dispatch(setSubmittingCreator(false));
+            if (action.onSuccess && action.onSuccess.length > 0) {
+              await runMany(action.onSuccess, ctx);
+            }
+          } catch (e) {
+            if (setSubmittingCreator) dispatch(setSubmittingCreator(false));
+            const isDsErr = e != null && typeof e === "object" && "kind" in (e as Record<string, unknown>);
+            const dsErr = isDsErr ? (e as { kind: string; message: string; fieldErrors?: Record<string, string>; formError?: string }) : undefined;
+            const errorMsg = dsErr?.message ?? (e instanceof Error ? e.message : String(e));
+
+            if (dataRequestFailedCreator) {
+              dispatch(dataRequestFailedCreator({ requestId, error: errorMsg }));
+            }
+            if (dsErr?.kind === "validation" && dsErr.fieldErrors && applyFieldErrorsCreator) {
+              dispatch(applyFieldErrorsCreator({ fieldErrors: dsErr.fieldErrors }));
+            }
+            if (setFormErrorCreator) {
+              dispatch(setFormErrorCreator({ message: dsErr?.formError ?? errorMsg }));
+            }
+            if (action.onError && action.onError.length > 0) {
+              await runMany(action.onError, ctx);
+            }
+            const err: ActionError = {
+              actionType: "SubmitForm",
               message: errorMsg,
               nodeId: ctx.nodeId,
               details: e,

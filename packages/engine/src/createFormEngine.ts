@@ -28,6 +28,8 @@ export interface FormEngine {
     makeSelectNodeDisabled: (nodeId: string) => (state: RootState) => boolean;
     makeSelectDataByKey: (key: string) => (state: RootState) => unknown;
     makeSelectRequestStatus: (key: string) => (state: RootState) => string;
+    selectFormError?: (state: RootState) => string | undefined;
+    selectSubmitting?: (state: RootState) => boolean;
   };
   validateAll: () => void;
   buildSubmitRequest: () => Record<string, unknown>;
@@ -159,6 +161,14 @@ export function createFormEngine(
       state.engine.data.requests[key]?.status ?? "idle";
   }
 
+  function selectFormError(state: RootState): string | undefined {
+    return state.engine.formError;
+  }
+
+  function selectSubmitting(state: RootState): boolean {
+    return state.engine.submitting;
+  }
+
   function validateAll(): void {
     const state = store.getState().engine;
     const doc = state.formDoc;
@@ -225,6 +235,9 @@ export function createFormEngine(
 
     for (const m of mapping) {
       if (m.policy === "transient") continue;
+      if (!m.sourcePath.startsWith("form.")) {
+        console.warn(`[engine] submission.mapping sourcePath "${m.sourcePath}" is not fully-qualified (expected "form.values.*"). This may resolve incorrectly.`);
+      }
 
       if (m.includeIf) {
         const include = evalAst(m.includeIf, ctx);
@@ -268,6 +281,8 @@ export function createFormEngine(
       makeSelectNodeDisabled,
       makeSelectDataByKey,
       makeSelectRequestStatus,
+      selectFormError,
+      selectSubmitting,
     },
     validateAll,
     buildSubmitRequest,

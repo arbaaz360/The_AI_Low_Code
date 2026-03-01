@@ -23,6 +23,8 @@ export interface EngineState {
   touchedByPath: Record<string, boolean>;
   dirtyByPath: Record<string, boolean>;
   errorsByPath: Record<string, string[]>;
+  formError?: string;
+  submitting: boolean;
   ui: {
     visibleByNodeId: Record<string, boolean>;
     disabledByNodeId: Record<string, boolean>;
@@ -57,6 +59,8 @@ const initialState: EngineState = {
   touchedByPath: {},
   dirtyByPath: {},
   errorsByPath: {},
+  formError: undefined,
+  submitting: false,
   ui: initialUi(),
   data: initialData(),
 };
@@ -172,6 +176,31 @@ export const engineSlice = createSlice({
     ) => {
       state.data.byKey[action.payload.key] = action.payload.value as Draft<unknown>;
     },
+    applyFieldErrors: (
+      state: Draft<EngineState>,
+      action: PayloadAction<{ fieldErrors: Record<string, string> }>
+    ) => {
+      for (const [path, msg] of Object.entries(action.payload.fieldErrors)) {
+        const existing = state.errorsByPath[path] ?? [];
+        state.errorsByPath[path] = [...existing, msg];
+      }
+    },
+    clearFieldErrors: (state: Draft<EngineState>) => {
+      state.errorsByPath = {};
+      state.formError = undefined;
+    },
+    setFormError: (
+      state: Draft<EngineState>,
+      action: PayloadAction<{ message?: string }>
+    ) => {
+      state.formError = action.payload.message;
+    },
+    setSubmitting: (
+      state: Draft<EngineState>,
+      action: PayloadAction<boolean>
+    ) => {
+      state.submitting = action.payload;
+    },
   },
 });
 
@@ -186,4 +215,8 @@ export const {
   dataRequestSucceeded,
   dataRequestFailed,
   dataSetByKey,
+  applyFieldErrors,
+  clearFieldErrors,
+  setFormError,
+  setSubmitting,
 } = engineSlice.actions;

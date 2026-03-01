@@ -4,6 +4,7 @@ import RadioGroupMui from "@mui/material/RadioGroup";
 import FormControl from "@mui/material/FormControl";
 import FormLabel from "@mui/material/FormLabel";
 import FormControlLabel from "@mui/material/FormControlLabel";
+import Typography from "@mui/material/Typography";
 import type { WidgetProps } from "@ai-low-code/renderer";
 
 export function RadioGroup({
@@ -12,6 +13,7 @@ export function RadioGroup({
   value,
   onChange,
   disabled,
+  loading,
   label,
   options,
   mode,
@@ -25,11 +27,12 @@ export function RadioGroup({
   return (
     <FormControl
       fullWidth
-      disabled={disabled}
+      disabled={disabled || loading}
       data-nodeid={mode === "design" ? nodeId : undefined}
       data-nodetype={mode === "design" ? nodeType : undefined}
     >
       <FormLabel>{label ?? ""}</FormLabel>
+      {loading && <Typography variant="body2" color="text.secondary" sx={{ py: 1 }}>Loading&hellip;</Typography>}
       <RadioGroupMui
         value={value ?? ""}
         onChange={(e) => onChange?.(e.target.value)}

@@ -1,0 +1,124 @@
+{
+  "schemaVersion": "1.0",
+  "pageFamily": "Form",
+  "rootNodeId": "root",
+  "dataSources": [
+    {
+      "id": "ds_categories",
+      "kind": "mock",
+      "name": "Expense Categories",
+      "response": [
+        { "value": "travel", "label": "Travel" },
+        { "value": "meals", "label": "Meals & Entertainment" },
+        { "value": "supplies", "label": "Office Supplies" },
+        { "value": "software", "label": "Software / SaaS" },
+        { "value": "other", "label": "Other" }
+      ],
+      "delayMs": 400
+    },
+    {
+      "id": "ds_submit_expense",
+      "kind": "rest",
+      "name": "Create Expense",
+      "method": "POST",
+      "url": "/__mock__/expense/create"
+    }
+  ],
+  "pageEvents": {
+    "onLoad": [
+      {
+        "type": "CallDataSource",
+        "dataSourceId": "ds_categories",
+        "resultKey": "ds_categories"
+      }
+    ]
+  },
+  "nodes": {
+    "root": {
+      "id": "root",
+      "type": "layout.Section",
+      "props": { "title": "New Expense Report" },
+      "children": ["grid1"]
+    },
+    "grid1": {
+      "id": "grid1",
+      "type": "layout.FormGrid",
+      "props": { "columns": 12 },
+      "children": ["description_field", "amount_field", "category_field", "date_field", "notes_field", "submit_btn"]
+    },
+    "description_field": {
+      "id": "description_field",
+      "type": "core.TextInput",
+      "props": { "label": "Description", "placeholder": "Brief expense description" },
+      "bindings": { "value": "form.values.description" },
+      "layout": { "kind": "gridItem", "span": { "xs": 12, "md": 6 } }
+    },
+    "amount_field": {
+      "id": "amount_field",
+      "type": "core.NumberInput",
+      "props": { "label": "Amount ($)", "placeholder": "0.00" },
+      "bindings": { "value": "form.values.amount" },
+      "layout": { "kind": "gridItem", "span": { "xs": 12, "md": 6 } },
+      "validation": {
+        "validators": [
+          { "type": "required", "message": "Amount is required" }
+        ]
+      }
+    },
+    "category_field": {
+      "id": "category_field",
+      "type": "core.Select",
+      "props": { "label": "Category" },
+      "bindings": { "value": "form.values.category", "options": "data.byKey.ds_categories" },
+      "layout": { "kind": "gridItem", "span": { "xs": 12, "md": 6 } }
+    },
+    "date_field": {
+      "id": "date_field",
+      "type": "core.DateInput",
+      "props": { "label": "Expense Date" },
+      "bindings": { "value": "form.values.expenseDate" },
+      "layout": { "kind": "gridItem", "span": { "xs": 12, "md": 6 } }
+    },
+    "notes_field": {
+      "id": "notes_field",
+      "type": "core.TextArea",
+      "props": { "label": "Notes", "placeholder": "Additional details...", "minRows": 2 },
+      "bindings": { "value": "form.values.notes" },
+      "layout": { "kind": "gridItem", "span": { "xs": 12 } }
+    },
+    "submit_btn": {
+      "id": "submit_btn",
+      "type": "core.Button",
+      "props": { "label": "Submit Expense", "variant": "contained", "color": "primary" },
+      "events": {
+        "onClick": [
+          {
+            "type": "SubmitForm",
+            "dataSourceId": "ds_submit_expense",
+            "resultKey": "submit",
+            "onSuccess": [
+              { "type": "Toast", "message": "Expense submitted successfully!", "severity": "success" },
+              { "type": "Navigate", "to": "/done" }
+            ],
+            "onError": [
+              { "type": "Toast", "message": "Submission failed — check errors above.", "severity": "error" }
+            ]
+          }
+        ]
+      },
+      "layout": { "kind": "gridItem", "span": { "xs": 12 } }
+    }
+  },
+  "rules": [],
+  "dataContext": { "entity": "Expense", "mode": "create" },
+  "submission": {
+    "submitOperation": { "operationId": "expense.create" },
+    "mapping": [
+      { "sourcePath": "form.values.description", "targetPath": "description" },
+      { "sourcePath": "form.values.amount", "targetPath": "amount" },
+      { "sourcePath": "form.values.category", "targetPath": "category" },
+      { "sourcePath": "form.values.expenseDate", "targetPath": "expenseDate" },
+      { "sourcePath": "form.values.notes", "targetPath": "notes" }
+    ]
+  }
+}

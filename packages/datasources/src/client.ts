@@ -1,4 +1,4 @@
-import type { DataSourceDef, MockDataSourceDef, RestDataSourceDef } from "./types.js";
+import type { DataSourceDef, MockDataSourceDef, RestDataSourceDef, DataSourceError } from "./types.js";
 import type { DataSourceRegistry } from "./registry.js";
 
 export interface DataSourceClientDeps {
@@ -24,12 +24,16 @@ function delay(ms: number, signal?: AbortSignal): Promise<void> {
   });
 }
 
+function makeDsError(kind: DataSourceError["kind"], message: string, extra?: Partial<DataSourceError>): DataSourceError {
+  return { kind, message, ...extra };
+}
+
 async function executeMock(def: MockDataSourceDef, signal?: AbortSignal): Promise<unknown> {
   if (def.delayMs && def.delayMs > 0) {
     await delay(def.delayMs, signal);
   }
   if (def.failRate != null && def.failRate > 0 && Math.random() < def.failRate) {
-    throw new Error(`Mock datasource "${def.id}" simulated failure`);
+    throw makeDsError("server", `Mock datasource "${def.id}" simulated failure`);
   }
   return deepClone(def.response);
 }
@@ -52,7 +56,24 @@ async function executeRest(
     headers: def.method === "POST" ? { "Content-Type": "application/json" } : undefined,
     body: def.method === "POST" && args ? JSON.stringify(args) : undefined,
   });
-  if (!res.ok) throw new Error(`REST datasource "${def.id}" failed: ${res.status}`);
+  if (!res.ok) {
+    let body: unknown;
+    try { body = await res.json(); } catch { body = undefined; }
+    if (body && typeof body === "object") {
+      const b = body as Record<string, unknown>;
+      const hasFieldErrors = b.fieldErrors && typeof b.fieldErrors === "object";
+      throw makeDsError(
+        hasFieldErrors ? "validation" : "server",
+        (typeof b.message === "string" ? b.message : `REST datasource "${def.id}" failed: ${res.status}`),
+        {
+          status: res.status,
+          fieldErrors: hasFieldErrors ? (b.fieldErrors as Record<string, string>) : undefined,
+          formError: typeof b.formError === "string" ? b.formError : undefined,
+        }
+      );
+    }
+    throw makeDsError("server", `REST datasource "${def.id}" failed: ${res.status}`, { status: res.status });
+  }
   return res.json();
 }
 

@@ -152,7 +152,7 @@
       "properties": {
         "type": {
           "type": "string",
-          "enum": ["SetValue", "ValidateForm", "Toast", "Navigate", "Batch", "If", "CallDataSource", "SetData"]
+          "enum": ["SetValue", "ValidateForm", "Toast", "Navigate", "Batch", "If", "CallDataSource", "SetData", "SubmitForm"]
         },
         "path": { "type": "string" },
         "value": {},
@@ -168,6 +168,7 @@
         "resultKey": { "type": "string" },
         "requestKey": { "type": "string" },
         "onError": { "type": "array", "items": { "$ref": "#/definitions/NodeAction" } },
+        "onSuccess": { "type": "array", "items": { "$ref": "#/definitions/NodeAction" } },
         "key": { "type": "string" }
       },
       "additionalProperties": false

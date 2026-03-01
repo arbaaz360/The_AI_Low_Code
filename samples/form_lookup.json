@@ -35,14 +35,12 @@
       {
         "type": "CallDataSource",
         "dataSourceId": "ds_countries",
-        "resultKey": "ds_countries",
-        "requestKey": "req_countries"
+        "resultKey": "ds_countries"
       },
       {
         "type": "CallDataSource",
         "dataSourceId": "ds_categories",
-        "resultKey": "ds_categories",
-        "requestKey": "req_categories"
+        "resultKey": "ds_categories"
       }
     ]
   },
@@ -105,10 +103,10 @@
   "submission": {
     "submitOperation": { "operationId": "lookup.submit" },
     "mapping": [
-      { "sourcePath": "name", "targetPath": "Name" },
-      { "sourcePath": "country", "targetPath": "CountryCode" },
-      { "sourcePath": "category", "targetPath": "Category" },
-      { "sourcePath": "notes", "targetPath": "Notes" }
+      { "sourcePath": "form.values.name", "targetPath": "Name" },
+      { "sourcePath": "form.values.country", "targetPath": "CountryCode" },
+      { "sourcePath": "form.values.category", "targetPath": "Category" },
+      { "sourcePath": "form.values.notes", "targetPath": "Notes" }
     ]
   }
 }

@@ -64,6 +64,15 @@ export interface SetDataAction {
   value: Expr;
 }
 
+export interface SubmitFormAction {
+  type: "SubmitForm";
+  dataSourceId: string;
+  resultKey?: string;
+  requestKey?: string;
+  onSuccess?: Action[];
+  onError?: Action[];
+}
+
 export type Action =
   | SetValueAction
   | ValidateFormAction
@@ -72,7 +81,8 @@ export type Action =
   | BatchAction
   | IfAction
   | CallDataSourceAction
-  | SetDataAction;
+  | SetDataAction
+  | SubmitFormAction;
 
 export const ACTION_TYPES = [
   "SetValue",
@@ -83,6 +93,7 @@ export const ACTION_TYPES = [
   "If",
   "CallDataSource",
   "SetData",
+  "SubmitForm",
 ] as const;
 
 export type ActionType = (typeof ACTION_TYPES)[number];
@@ -141,14 +152,25 @@ export interface DataSourceClientLike {
 
 export interface ActionRunnerDeps {
   dispatch: (reduxAction: { type: string; payload: unknown }) => void;
-  getState: () => { engine: { values: Record<string, unknown>; data: { byKey: Record<string, unknown> } } };
+  getState: () => {
+    engine: {
+      values: Record<string, unknown>;
+      errorsByPath: Record<string, string[]>;
+      data: { byKey: Record<string, unknown> };
+    };
+  };
   setValueActionCreator: (payload: { path: string; value: unknown }) => { type: string; payload: unknown };
   dataRequestStartedCreator?: (payload: { requestId: string; dataSourceId: string }) => { type: string; payload: unknown };
   dataRequestSucceededCreator?: (payload: { requestId: string; resultKey: string; result: unknown }) => { type: string; payload: unknown };
   dataRequestFailedCreator?: (payload: { requestId: string; error: string }) => { type: string; payload: unknown };
   dataSetByKeyCreator?: (payload: { key: string; value: unknown }) => { type: string; payload: unknown };
+  applyFieldErrorsCreator?: (payload: { fieldErrors: Record<string, string> }) => { type: string; payload: unknown };
+  clearFieldErrorsCreator?: () => { type: string; payload?: unknown };
+  setFormErrorCreator?: (payload: { message?: string }) => { type: string; payload: unknown };
+  setSubmittingCreator?: (payload: boolean) => { type: string; payload: unknown };
   dataSourceClient?: DataSourceClientLike;
   validateAll?: () => void;
+  buildSubmitRequest?: () => Record<string, unknown>;
   evalExpr: (ast: Expr, ctx: { get: (path: string) => unknown }) => unknown;
   navigate?: (to: string) => void;
   toast?: (opts: { message: string; severity?: string }) => void;

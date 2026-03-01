@@ -10,7 +10,7 @@ import FormControl from "@mui/material/FormControl";
 import InputLabel from "@mui/material/InputLabel";
 import Paper from "@mui/material/Paper";
 import Divider from "@mui/material/Divider";
-import type { Action, NodeEventName } from "@ai-low-code/actions";
+import type { Action, NodeEventName, SubmitFormAction } from "@ai-low-code/actions";
 
 const EVENT_NAMES_BY_WIDGET: Record<string, NodeEventName[]> = {
   "core.TextInput": ["onChange", "onBlur"],
@@ -24,11 +24,12 @@ const EVENT_NAMES_BY_WIDGET: Record<string, NodeEventName[]> = {
   "core.Button": ["onClick"],
 };
 
-const ADDABLE_ACTION_TYPES: { type: string; label: string }[] = [
+const ADDABLE_ACTION_TYPES: { type: string; label: string; widgetFilter?: string[] }[] = [
   { type: "SetValue", label: "Set Value" },
   { type: "Toast", label: "Toast" },
   { type: "Navigate", label: "Navigate" },
   { type: "ValidateForm", label: "Validate Form" },
+  { type: "SubmitForm", label: "Submit Form", widgetFilter: ["core.Button"] },
 ];
 
 function defaultAction(type: string): Action {
@@ -41,9 +42,17 @@ function defaultAction(type: string): Action {
       return { type: "Navigate", to: "/" };
     case "ValidateForm":
       return { type: "ValidateForm" };
+    case "SubmitForm":
+      return { type: "SubmitForm", dataSourceId: "", resultKey: "submit" };
     default:
       return { type: "ValidateForm" };
   }
+}
+
+interface DataSourceDefMeta {
+  id: string;
+  kind: string;
+  name?: string;
 }
 
 function ActionEditor({
@@ -54,6 +63,7 @@ function ActionEditor({
   onDelete,
   onMoveUp,
   onMoveDown,
+  dataSources = [],
 }: {
   action: Action;
   index: number;
@@ -62,6 +72,7 @@ function ActionEditor({
   onDelete: () => void;
   onMoveUp: () => void;
   onMoveDown: () => void;
+  dataSources?: DataSourceDefMeta[];
 }) {
   return (
     <Paper variant="outlined" sx={{ p: 1, mb: 0.5 }}>
@@ -161,6 +172,34 @@ function ActionEditor({
           Triggers form validation
         </Typography>
       )}
+
+      {action.type === "SubmitForm" && (
+        <>
+          <FormControl size="small" fullWidth sx={{ mb: 0.5 }}>
+            <InputLabel>DataSource</InputLabel>
+            <Select
+              label="DataSource"
+              value={(action as SubmitFormAction).dataSourceId || ""}
+              onChange={(e) => onChange({ ...action, dataSourceId: e.target.value } as Action)}
+            >
+              {dataSources.map((ds) => (
+                <MenuItem key={ds.id} value={ds.id}>{ds.name || ds.id}</MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+          <TextField
+            label="Result Key"
+            size="small"
+            fullWidth
+            value={(action as SubmitFormAction).resultKey ?? "submit"}
+            onChange={(e) => onChange({ ...action, resultKey: e.target.value } as Action)}
+            sx={{ mb: 0.5 }}
+          />
+          <Typography variant="caption" color="text.secondary">
+            Validates, builds payload, calls datasource, maps errors back
+          </Typography>
+        </>
+      )}
     </Paper>
   );
 }
@@ -169,9 +208,10 @@ interface EventEditorProps {
   nodeType: string;
   events: Record<string, unknown[]> | undefined;
   onUpdateEvents: (events: Record<string, unknown[]>) => void;
+  dataSources?: DataSourceDefMeta[];
 }
 
-export function EventEditor({ nodeType, events, onUpdateEvents }: EventEditorProps) {
+export function EventEditor({ nodeType, events, onUpdateEvents, dataSources = [] }: EventEditorProps) {
   const supportedEvents = EVENT_NAMES_BY_WIDGET[nodeType] ?? [];
 
   const getActions = useCallback(
@@ -186,6 +226,10 @@ export function EventEditor({ nodeType, events, onUpdateEvents }: EventEditorPro
       onUpdateEvents({ ...events, [eventName]: actions });
     },
     [events, onUpdateEvents]
+  );
+
+  const addableActions = ADDABLE_ACTION_TYPES.filter(
+    (at) => !at.widgetFilter || at.widgetFilter.includes(nodeType)
   );
 
   if (supportedEvents.length === 0) return null;
@@ -216,7 +260,7 @@ export function EventEditor({ nodeType, events, onUpdateEvents }: EventEditorPro
                   sx={{ fontSize: "0.7rem", height: 24 }}
                   data-testid={`event-${eventName}-add`}
                 >
-                  {ADDABLE_ACTION_TYPES.map((at) => (
+                  {addableActions.map((at) => (
                     <MenuItem key={at.type} value={at.type}>{at.label}</MenuItem>
                   ))}
                 </Select>
@@ -235,6 +279,7 @@ export function EventEditor({ nodeType, events, onUpdateEvents }: EventEditorPro
                 action={action}
                 index={i}
                 total={actions.length}
+                dataSources={dataSources}
                 onChange={(updated) => {
                   const next = [...actions];
                   next[i] = updated;

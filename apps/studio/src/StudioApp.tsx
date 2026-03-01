@@ -39,11 +39,13 @@ import { createActionRunner, type ActionRunner, type ActionError } from "@ai-low
 import { createDataSourceRegistry, createDataSourceClient } from "@ai-low-code/datasources";
 import {
   dataRequestStarted, dataRequestSucceeded, dataRequestFailed, dataSetByKey,
+  applyFieldErrors, clearFieldErrors, setFormError, setSubmitting,
 } from "@ai-low-code/engine";
 import { evalAst } from "@ai-low-code/expr";
 import type { FormDoc, FormNode } from "@ai-low-code/engine";
 import type { DomainField } from "./domainModel.js";
 import { DataSourcesPanel } from "./DataSourcesPanel.jsx";
+import { mockFetch } from "./mockFetch.js";
 
 const SAMPLE_INITIAL_VALUES: Record<string, unknown> = {
   form: {
@@ -123,20 +125,25 @@ export function StudioApp({
       return { id: d.id, kind: "mock" as const, name: d.name, response: d.response, delayMs: d.delayMs, failRate: d.failRate };
     });
     const registry = createDataSourceRegistry(defs);
-    return createDataSourceClient({ registry });
+    return createDataSourceClient({ registry, fetchImpl: mockFetch });
   }, [doc.dataSources]);
 
   const actionRunner: ActionRunner = useMemo(() => {
     return createActionRunner({
       dispatch: (a) => engine.store.dispatch(a),
-      getState: () => engine.store.getState() as { engine: { values: Record<string, unknown>; data: { byKey: Record<string, unknown> } } },
+      getState: () => engine.store.getState() as { engine: { values: Record<string, unknown>; errorsByPath: Record<string, string[]>; data: { byKey: Record<string, unknown> } } },
       setValueActionCreator: (p) => engine.actions.setValue(p),
       dataRequestStartedCreator: (p) => dataRequestStarted(p),
       dataRequestSucceededCreator: (p) => dataRequestSucceeded(p),
       dataRequestFailedCreator: (p) => dataRequestFailed(p),
       dataSetByKeyCreator: (p) => dataSetByKey(p),
+      applyFieldErrorsCreator: (p) => applyFieldErrors(p),
+      clearFieldErrorsCreator: () => clearFieldErrors(),
+      setFormErrorCreator: (p) => setFormError(p),
+      setSubmittingCreator: (p) => setSubmitting(p),
       dataSourceClient: dsClient,
       validateAll: () => engine.validateAll(),
+      buildSubmitRequest: () => engine.buildSubmitRequest(),
       evalExpr: (ast, ctx) => evalAst(ast, ctx),
       navigate: (to) => {
         setLastNav(to);
@@ -232,7 +239,7 @@ export function StudioApp({
     if (!alreadyBound) {
       const newOnLoad = [
         ...existing,
-        { type: "CallDataSource", dataSourceId, resultKey, requestKey: `req_${resultKey}` },
+        { type: "CallDataSource", dataSourceId, resultKey },
       ];
       apply({ type: "SetPageEvents", pageEvents: { onLoad: newOnLoad } });
     }

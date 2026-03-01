@@ -46,6 +46,14 @@ describe("validateFormDoc", () => {
     expect(result.errors).toHaveLength(0);
   });
 
+  it("form_submit.json validates successfully", () => {
+    const doc = loadSample("form_submit.json");
+    const result = validateFormDoc(doc);
+
+    expect(result.ok).toBe(true);
+    expect(result.errors).toHaveLength(0);
+  });
+
   it("returns readable errors when document is invalid", () => {
     const invalidDoc = {
       schemaVersion: "1.0",

@@ -16,6 +16,7 @@ export interface WidgetProps {
   onClick?: () => void;
   onBlur?: () => void;
   disabled?: boolean;
+  loading?: boolean;
   error?: string[];
   label?: string;
   options?: unknown[] | unknown;

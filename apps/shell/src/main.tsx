@@ -22,13 +22,16 @@ import { createActionRunner, type ActionRunner } from "@ai-low-code/actions";
 import { createDataSourceRegistry, createDataSourceClient } from "@ai-low-code/datasources";
 import {
   dataRequestStarted, dataRequestSucceeded, dataRequestFailed, dataSetByKey,
+  applyFieldErrors, clearFieldErrors, setFormError, setSubmitting,
 } from "@ai-low-code/engine";
 import { evalAst } from "@ai-low-code/expr";
 import type { FormDoc } from "@ai-low-code/engine";
+import { mockFetch } from "./mockFetch.js";
 
 import formRules from "../../../samples/form_rules.json";
 import formBasic from "../../../samples/form_basic.json";
 import formLookup from "../../../samples/form_lookup.json";
+import formSubmit from "../../../samples/form_submit.json";
 
 const SAMPLES: Record<string, { doc: unknown; label: string; initialValues?: Record<string, unknown> }> = {
   form_rules: {
@@ -69,6 +72,10 @@ const SAMPLES: Record<string, { doc: unknown; label: string; initialValues?: Rec
     doc: formLookup,
     label: "Form Lookup (dynamic options)",
   },
+  form_submit: {
+    doc: formSubmit,
+    label: "Form Submit (validation + submit)",
+  },
 };
 
 const theme = createPlatformTheme();
@@ -100,21 +107,26 @@ function ShellApp() {
       return { id: d.id, kind: "mock" as const, name: d.name, response: d.response, delayMs: d.delayMs, failRate: d.failRate };
     });
     const registry = createDataSourceRegistry(defs);
-    return createDataSourceClient({ registry });
+    return createDataSourceClient({ registry, fetchImpl: mockFetch });
   }, [activeDoc]);
 
   const actionRunner: ActionRunner | undefined = useMemo(() => {
     if (!engine) return undefined;
     return createActionRunner({
       dispatch: (a) => engine.store.dispatch(a),
-      getState: () => engine.store.getState() as { engine: { values: Record<string, unknown>; data: { byKey: Record<string, unknown> } } },
+      getState: () => engine.store.getState() as { engine: { values: Record<string, unknown>; errorsByPath: Record<string, string[]>; data: { byKey: Record<string, unknown> } } },
       setValueActionCreator: (p) => engine.actions.setValue(p),
       dataRequestStartedCreator: (p) => dataRequestStarted(p),
       dataRequestSucceededCreator: (p) => dataRequestSucceeded(p),
       dataRequestFailedCreator: (p) => dataRequestFailed(p),
       dataSetByKeyCreator: (p) => dataSetByKey(p),
+      applyFieldErrorsCreator: (p) => applyFieldErrors(p),
+      clearFieldErrorsCreator: () => clearFieldErrors(),
+      setFormErrorCreator: (p) => setFormError(p),
+      setSubmittingCreator: (p) => setSubmitting(p),
       dataSourceClient: dsClient,
       validateAll: () => engine.validateAll(),
+      buildSubmitRequest: () => engine.buildSubmitRequest(),
       evalExpr: (ast, ctx) => evalAst(ast, ctx),
       navigate: (to) => {
         setLastRoute(to);

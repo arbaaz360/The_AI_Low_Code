@@ -4,14 +4,20 @@ import type { Action, ActionContext, ActionRunnerDeps } from "./types.js";
 
 function makeDeps(overrides?: Partial<ActionRunnerDeps>): ActionRunnerDeps {
   const values: Record<string, unknown> = { form: { values: { x: 1 } } };
+  let errorsByPath: Record<string, string[]> = {};
   return {
     dispatch: vi.fn(),
-    getState: () => ({ engine: { values, data: { byKey: {} } } }),
+    getState: () => ({ engine: { values, errorsByPath, data: { byKey: {} } } }),
     setValueActionCreator: (p) => ({ type: "engine/setValue", payload: p }),
     dataRequestStartedCreator: (p) => ({ type: "engine/dataRequestStarted", payload: p }),
     dataRequestSucceededCreator: (p) => ({ type: "engine/dataRequestSucceeded", payload: p }),
     dataRequestFailedCreator: (p) => ({ type: "engine/dataRequestFailed", payload: p }),
     dataSetByKeyCreator: (p) => ({ type: "engine/dataSetByKey", payload: p }),
+    applyFieldErrorsCreator: (p) => ({ type: "engine/applyFieldErrors", payload: p }),
+    clearFieldErrorsCreator: () => ({ type: "engine/clearFieldErrors", payload: undefined }),
+    setFormErrorCreator: (p) => ({ type: "engine/setFormError", payload: p }),
+    setSubmittingCreator: (p) => ({ type: "engine/setSubmitting", payload: p }),
+    buildSubmitRequest: () => ({ amount: 100, description: "Test" }),
     evalExpr: (ast, ctx) => {
       if ((ast as { op: string }).op === "lit") return (ast as { value: unknown }).value;
       if ((ast as { op: string }).op === "ref") return ctx.get((ast as { path: string }).path);
@@ -19,7 +25,7 @@ function makeDeps(overrides?: Partial<ActionRunnerDeps>): ActionRunnerDeps {
     },
     navigate: vi.fn(),
     toast: vi.fn(),
-    validateAll: vi.fn(),
+    validateAll: vi.fn(() => { errorsByPath = {}; }),
     telemetry: undefined,
     ...overrides,
   };
@@ -278,5 +284,102 @@ describe("ActionRunner", () => {
       type: "engine/dataSetByKey",
       payload: { key: "myList", value: [1, 2, 3] },
     });
+  });
+
+  // --- SubmitForm ---
+
+  it("SubmitForm: happy path - validates, calls datasource, runs onSuccess", async () => {
+    const mockClient = { execute: vi.fn().mockResolvedValue({ id: "exp_123", status: "created" }) };
+    const deps = makeDeps({ dataSourceClient: mockClient });
+    const runner = createActionRunner(deps);
+    const actions: Action[] = [
+      {
+        type: "SubmitForm",
+        dataSourceId: "ds_submit",
+        resultKey: "submit",
+        onSuccess: [{ type: "Toast", message: "Success!", severity: "success" }],
+        onError: [{ type: "Toast", message: "Failed", severity: "error" }],
+      },
+    ];
+    const errors = await runner.run(actions, makeCtx());
+    expect(errors).toHaveLength(0);
+    expect(deps.validateAll).toHaveBeenCalled();
+    expect(mockClient.execute).toHaveBeenCalledWith({
+      dataSourceId: "ds_submit",
+      args: { amount: 100, description: "Test" },
+    });
+    expect(deps.toast).toHaveBeenCalledWith({ message: "Success!", severity: "success" });
+  });
+
+  it("SubmitForm: validation errors prevent datasource call", async () => {
+    const mockClient = { execute: vi.fn().mockResolvedValue({ id: "exp_123" }) };
+    const deps = makeDeps({
+      dataSourceClient: mockClient,
+      validateAll: vi.fn(() => {
+        /* simulate validation setting errors - we override getState to return them */
+      }),
+    });
+    (deps as Record<string, unknown>).getState = () => ({
+      engine: {
+        values: { form: { values: { x: 1 } } },
+        errorsByPath: { "form.values.amount": ["Required"] },
+        data: { byKey: {} },
+      },
+    });
+    const runner = createActionRunner(deps);
+    const actions: Action[] = [
+      { type: "SubmitForm", dataSourceId: "ds_submit", resultKey: "submit" },
+    ];
+    const errors = await runner.run(actions, makeCtx());
+    expect(errors).toHaveLength(1);
+    expect(errors[0]!.message).toBe("Validation failed");
+    expect(mockClient.execute).not.toHaveBeenCalled();
+  });
+
+  it("SubmitForm: DataSourceError with fieldErrors maps back", async () => {
+    const dsError = {
+      kind: "validation",
+      message: "Validation failed",
+      fieldErrors: { "form.values.amount": "Must be > 0" },
+      formError: "The expense could not be created.",
+    };
+    const mockClient = { execute: vi.fn().mockRejectedValue(dsError) };
+    const deps = makeDeps({ dataSourceClient: mockClient });
+    const runner = createActionRunner(deps);
+    const actions: Action[] = [
+      {
+        type: "SubmitForm",
+        dataSourceId: "ds_submit",
+        resultKey: "submit",
+        onError: [{ type: "Toast", message: "oops", severity: "error" }],
+      },
+    ];
+    const errors = await runner.run(actions, makeCtx());
+    expect(errors).toHaveLength(1);
+    expect(deps.dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "engine/applyFieldErrors",
+        payload: { fieldErrors: { "form.values.amount": "Must be > 0" } },
+      })
+    );
+    expect(deps.dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "engine/setFormError",
+        payload: { message: "The expense could not be created." },
+      })
+    );
+    expect(deps.toast).toHaveBeenCalledWith({ message: "oops", severity: "error" });
+  });
+
+  it("SubmitForm: suppressed in design mode", async () => {
+    const mockClient = { execute: vi.fn().mockResolvedValue("ok") };
+    const deps = makeDeps({ dataSourceClient: mockClient });
+    const runner = createActionRunner(deps);
+    const actions: Action[] = [
+      { type: "SubmitForm", dataSourceId: "ds_submit" },
+    ];
+    const errors = await runner.run(actions, makeCtx({ mode: "design" }));
+    expect(errors).toHaveLength(0);
+    expect(mockClient.execute).not.toHaveBeenCalled();
   });
 });

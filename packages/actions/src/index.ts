@@ -8,6 +8,7 @@ export type {
   IfAction,
   CallDataSourceAction,
   SetDataAction,
+  SubmitFormAction,
   ActionType,
   NodeEvents,
   NodeEventName,

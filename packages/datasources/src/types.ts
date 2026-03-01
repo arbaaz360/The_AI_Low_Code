@@ -30,3 +30,15 @@ export interface DataStore {
   byKey: Record<string, unknown>;
   requests: Record<string, DataSourceRequest>;
 }
+
+export interface DataSourceError {
+  kind: "network" | "server" | "validation" | "abort";
+  message: string;
+  fieldErrors?: Record<string, string>;
+  formError?: string;
+  status?: number;
+}
+
+export function isDataSourceError(e: unknown): e is DataSourceError {
+  return e != null && typeof e === "object" && "kind" in (e as Record<string, unknown>);
+}

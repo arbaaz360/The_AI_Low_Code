@@ -826,8 +826,8 @@ A FormDoc is the complete description of a form. Here's a simplified example wit
   "submission": {
     "submitOperation": { "operationId": "myEntity.create" },
     "mapping": [
-      { "sourcePath": "name", "targetPath": "FullName" },
-      { "sourcePath": "country", "targetPath": "CountryCode" }
+      { "sourcePath": "form.values.name", "targetPath": "FullName" },
+      { "sourcePath": "form.values.country", "targetPath": "CountryCode" }
     ]
   }
 }
