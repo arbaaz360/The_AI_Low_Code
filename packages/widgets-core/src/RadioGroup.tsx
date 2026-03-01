@@ -23,13 +23,16 @@ export function RadioGroup({
     : [];
 
   return (
-    <FormControl disabled={disabled}>
+    <FormControl
+      fullWidth
+      disabled={disabled}
+      data-nodeid={mode === "design" ? nodeId : undefined}
+      data-nodetype={mode === "design" ? nodeType : undefined}
+    >
       <FormLabel>{label ?? ""}</FormLabel>
       <RadioGroupMui
         value={value ?? ""}
         onChange={(e) => onChange?.(e.target.value)}
-        data-nodeid={mode === "design" ? nodeId : undefined}
-        data-nodetype={mode === "design" ? nodeType : undefined}
       >
         {opts.map((opt: unknown, i: number) => {
           const o = typeof opt === "object" && opt && "value" in (opt as object)

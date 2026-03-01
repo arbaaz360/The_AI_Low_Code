@@ -5,6 +5,7 @@ import { TextInput } from "./TextInput.js";
 import { Checkbox } from "./Checkbox.js";
 import { Select } from "./Select.js";
 import { RadioGroup } from "./RadioGroup.js";
+import { Stack } from "./Stack.js";
 
 export const defaultRegistry: WidgetRegistry = {
   "layout.FormGrid": FormGrid,
@@ -15,6 +16,11 @@ export const defaultRegistry: WidgetRegistry = {
   "core.Checkbox": Checkbox,
   "core.Select": Select,
   "core.RadioGroup": RadioGroup,
+  "layout.Stack": Stack,
+  Stack,
 };
 
-export { FormGrid, Section, TextInput, Checkbox, Select, RadioGroup };
+export { FormGrid, Section, TextInput, Checkbox, Select, RadioGroup, Stack };
+export { getPropSchema } from "./propertySchemas.js";
+export { mapFieldToWidget } from "./fieldMapping.js";
+export type { DomainFieldLike } from "./fieldMapping.js";

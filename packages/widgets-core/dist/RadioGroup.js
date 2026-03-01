@@ -10,7 +10,7 @@ export function RadioGroup({ nodeId, nodeType, value, onChange, disabled, label,
         : options && typeof options === "object" && "options" in options
             ? options.options
             : [];
-    return (_jsxs(FormControl, { disabled: disabled, children: [_jsx(FormLabel, { children: label ?? "" }), _jsx(RadioGroupMui, { value: value ?? "", onChange: (e) => onChange?.(e.target.value), "data-nodeid": mode === "design" ? nodeId : undefined, "data-nodetype": mode === "design" ? nodeType : undefined, children: opts.map((opt, i) => {
+    return (_jsxs(FormControl, { fullWidth: true, disabled: disabled, "data-nodeid": mode === "design" ? nodeId : undefined, "data-nodetype": mode === "design" ? nodeType : undefined, children: [_jsx(FormLabel, { children: label ?? "" }), _jsx(RadioGroupMui, { value: value ?? "", onChange: (e) => onChange?.(e.target.value), children: opts.map((opt, i) => {
                     const o = typeof opt === "object" && opt && "value" in opt
                         ? opt
                         : { value: opt, label: String(opt) };

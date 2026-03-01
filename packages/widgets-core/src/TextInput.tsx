@@ -5,6 +5,7 @@ import type { WidgetProps } from "@ai-low-code/renderer";
 export function TextInput({
   nodeId,
   nodeType,
+  props,
   value,
   onChange,
   disabled,
@@ -18,6 +19,7 @@ export function TextInput({
       data-nodetype={mode === "design" ? nodeType : undefined}
       fullWidth
       label={label}
+      placeholder={(props?.placeholder as string) ?? ""}
       value={value ?? ""}
       onChange={(e) => onChange?.(e.target.value)}
       disabled={disabled}

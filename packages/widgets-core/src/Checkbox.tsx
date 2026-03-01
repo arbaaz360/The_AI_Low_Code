@@ -14,10 +14,10 @@ export function Checkbox({
 }: WidgetProps) {
   return (
     <FormControlLabel
+      data-nodeid={mode === "design" ? nodeId : undefined}
+      data-nodetype={mode === "design" ? nodeType : undefined}
       control={
         <MuiCheckbox
-          data-nodeid={mode === "design" ? nodeId : undefined}
-          data-nodetype={mode === "design" ? nodeType : undefined}
           checked={Boolean(value)}
           onChange={(e) => onChange?.(e.target.checked)}
           disabled={disabled}

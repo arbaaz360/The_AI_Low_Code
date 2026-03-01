@@ -1,0 +1,76 @@
+{
+  "version": "1",
+  "entities": {
+    "Vendor": {
+      "fields": [
+        {
+          "name": "vendorName",
+          "displayName": "Vendor Name",
+          "type": "string",
+          "required": true,
+          "maxLength": 120
+        },
+        {
+          "name": "taxId",
+          "displayName": "Tax ID",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "industry",
+          "displayName": "Industry",
+          "type": "enum",
+          "options": ["IT", "Manufacturing"],
+          "required": true
+        },
+        {
+          "name": "isActive",
+          "displayName": "Active",
+          "type": "boolean"
+        }
+      ]
+    },
+    "Account": {
+      "fields": [
+        {
+          "name": "accountType",
+          "displayName": "Account Type",
+          "type": "enum",
+          "options": ["company", "individual"],
+          "required": true
+        },
+        {
+          "name": "companyName",
+          "displayName": "Company Name",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "taxId",
+          "displayName": "Tax ID",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "industry",
+          "displayName": "Industry",
+          "type": "enum",
+          "options": ["tech", "finance"],
+          "required": false
+        },
+        {
+          "name": "ssn",
+          "displayName": "SSN",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "occupation",
+          "displayName": "Occupation",
+          "type": "string",
+          "required": false
+        }
+      ]
+    }
+  }
+}

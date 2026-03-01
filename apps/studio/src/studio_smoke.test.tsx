@@ -7,6 +7,7 @@ import { ThemeProvider, CssBaseline } from "@mui/material";
 import { createTheme } from "@mui/material/styles";
 import { validateFormDoc } from "@ai-low-code/schema";
 import { StudioApp } from "./StudioApp.jsx";
+import { TEST_DOMAIN_MODEL_NONE } from "./test-utils.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const doc = JSON.parse(
@@ -23,7 +24,7 @@ describe("StudioApp smoke", () => {
     render(
       <ThemeProvider theme={theme}>
         <CssBaseline />
-        <StudioApp doc={doc} />
+        <StudioApp doc={doc} initialDomainModel={TEST_DOMAIN_MODEL_NONE} />
       </ThemeProvider>
     );
 

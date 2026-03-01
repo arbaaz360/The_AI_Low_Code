@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@ai-low-code/renderer": "*",
+    "@ai-low-code/studio-core": "*",
     "@emotion/react": "^11.13.0",
     "@emotion/styled": "^11.13.0",
     "@mui/material": "^5.16.0",
