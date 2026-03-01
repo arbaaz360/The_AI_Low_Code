@@ -35,11 +35,15 @@ export function NodeRenderer({ nodeId, doc, engine, registry, mode }) {
         return engine.selectors.makeSelectValue(optionsPath);
     }, [optionsPath, engine.selectors]);
     const errorsSelector = useMemo(() => (valuePath ? engine.selectors.makeSelectError(valuePath) : EMPTY_ERRORS_SELECTOR), [valuePath, engine.selectors]);
+    const dataBindKey = optionsPath?.startsWith("data.byKey.") ? optionsPath.slice("data.byKey.".length) : undefined;
+    const loadingSelector = useMemo(() => (dataBindKey ? engine.selectors.makeSelectRequestStatus(dataBindKey) : () => "idle"), [dataBindKey, engine.selectors]);
     const visible = useSelector(engine.selectors.makeSelectNodeVisible(nodeId));
     const disabled = useSelector(engine.selectors.makeSelectNodeDisabled(nodeId));
     const value = useSelector(valueSelector);
     const options = useSelector(optionsSelector);
     const errors = useSelector(errorsSelector);
+    const requestStatus = useSelector(loadingSelector);
+    const optionsLoading = requestStatus === "loading";
     const hasExplicitOnChange = Boolean(node?.events?.onChange && node.events.onChange.length > 0);
     const hasExplicitOnClick = Boolean(node?.events?.onClick && node.events.onClick.length > 0);
     const hasExplicitOnBlur = Boolean(node?.events?.onBlur && node.events.onBlur.length > 0);
@@ -97,6 +101,7 @@ export function NodeRenderer({ nodeId, doc, engine, registry, mode }) {
         onClick: hasExplicitOnClick ? handleClick : undefined,
         onBlur: hasExplicitOnBlur ? handleBlur : undefined,
         disabled,
+        loading: optionsLoading,
         error: errors,
         label: resolveLabel(node, mode),
         options: options ?? node.props?.options,

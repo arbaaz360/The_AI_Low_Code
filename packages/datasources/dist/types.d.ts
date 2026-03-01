@@ -26,4 +26,12 @@ export interface DataStore {
     byKey: Record<string, unknown>;
     requests: Record<string, DataSourceRequest>;
 }
+export interface DataSourceError {
+    kind: "network" | "server" | "validation" | "abort";
+    message: string;
+    fieldErrors?: Record<string, string>;
+    formError?: string;
+    status?: number;
+}
+export declare function isDataSourceError(e: unknown): e is DataSourceError;
 //# sourceMappingURL=types.d.ts.map

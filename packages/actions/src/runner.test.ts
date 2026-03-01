@@ -14,7 +14,7 @@ function makeDeps(overrides?: Partial<ActionRunnerDeps>): ActionRunnerDeps {
     dataRequestFailedCreator: (p) => ({ type: "engine/dataRequestFailed", payload: p }),
     dataSetByKeyCreator: (p) => ({ type: "engine/dataSetByKey", payload: p }),
     applyFieldErrorsCreator: (p) => ({ type: "engine/applyFieldErrors", payload: p }),
-    clearFieldErrorsCreator: () => ({ type: "engine/clearFieldErrors", payload: undefined }),
+    clearFieldErrorsCreator: () => ({ type: "engine/clearFieldErrors", payload: undefined as unknown }),
     setFormErrorCreator: (p) => ({ type: "engine/setFormError", payload: p }),
     setSubmittingCreator: (p) => ({ type: "engine/setSubmitting", payload: p }),
     buildSubmitRequest: () => ({ amount: 100, description: "Test" }),
@@ -319,7 +319,7 @@ describe("ActionRunner", () => {
         /* simulate validation setting errors - we override getState to return them */
       }),
     });
-    (deps as Record<string, unknown>).getState = () => ({
+    (deps as unknown as Record<string, unknown>).getState = () => ({
       engine: {
         values: { form: { values: { x: 1 } } },
         errorsByPath: { "form.values.amount": ["Required"] },

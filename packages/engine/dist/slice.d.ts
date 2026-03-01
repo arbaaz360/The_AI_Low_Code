@@ -15,6 +15,8 @@ export interface EngineState {
     touchedByPath: Record<string, boolean>;
     dirtyByPath: Record<string, boolean>;
     errorsByPath: Record<string, string[]>;
+    formError?: string;
+    submitting: boolean;
     ui: {
         visibleByNodeId: Record<string, boolean>;
         disabledByNodeId: Record<string, boolean>;
@@ -60,6 +62,14 @@ export declare const engineSlice: import("@reduxjs/toolkit").Slice<EngineState, 
         key: string;
         value: unknown;
     }>) => void;
+    applyFieldErrors: (state: Draft<EngineState>, action: PayloadAction<{
+        fieldErrors: Record<string, string>;
+    }>) => void;
+    clearFieldErrors: (state: Draft<EngineState>) => void;
+    setFormError: (state: Draft<EngineState>, action: PayloadAction<{
+        message?: string;
+    }>) => void;
+    setSubmitting: (state: Draft<EngineState>, action: PayloadAction<boolean>) => void;
 }, "engine", "engine", import("@reduxjs/toolkit").SliceSelectors<EngineState>>;
 export declare const initForm: import("@reduxjs/toolkit").ActionCreatorWithPayload<{
     formDoc: FormDoc;
@@ -86,5 +96,9 @@ export declare const initForm: import("@reduxjs/toolkit").ActionCreatorWithPaylo
 }, "engine/dataRequestFailed">, dataSetByKey: import("@reduxjs/toolkit").ActionCreatorWithPayload<{
     key: string;
     value: unknown;
-}, "engine/dataSetByKey">;
+}, "engine/dataSetByKey">, applyFieldErrors: import("@reduxjs/toolkit").ActionCreatorWithPayload<{
+    fieldErrors: Record<string, string>;
+}, "engine/applyFieldErrors">, clearFieldErrors: import("@reduxjs/toolkit").ActionCreatorWithoutPayload<"engine/clearFieldErrors">, setFormError: import("@reduxjs/toolkit").ActionCreatorWithPayload<{
+    message?: string;
+}, "engine/setFormError">, setSubmitting: import("@reduxjs/toolkit").ActionCreatorWithPayload<boolean, "engine/setSubmitting">;
 //# sourceMappingURL=slice.d.ts.map

@@ -10,12 +10,15 @@ function delay(ms, signal) {
         });
     });
 }
+function makeDsError(kind, message, extra) {
+    return { kind, message, ...extra };
+}
 async function executeMock(def, signal) {
     if (def.delayMs && def.delayMs > 0) {
         await delay(def.delayMs, signal);
     }
     if (def.failRate != null && def.failRate > 0 && Math.random() < def.failRate) {
-        throw new Error(`Mock datasource "${def.id}" simulated failure`);
+        throw makeDsError("server", `Mock datasource "${def.id}" simulated failure`);
     }
     return deepClone(def.response);
 }
@@ -32,8 +35,25 @@ async function executeRest(def, fetchImpl, args, signal) {
         headers: def.method === "POST" ? { "Content-Type": "application/json" } : undefined,
         body: def.method === "POST" && args ? JSON.stringify(args) : undefined,
     });
-    if (!res.ok)
-        throw new Error(`REST datasource "${def.id}" failed: ${res.status}`);
+    if (!res.ok) {
+        let body;
+        try {
+            body = await res.json();
+        }
+        catch {
+            body = undefined;
+        }
+        if (body && typeof body === "object") {
+            const b = body;
+            const hasFieldErrors = b.fieldErrors && typeof b.fieldErrors === "object";
+            throw makeDsError(hasFieldErrors ? "validation" : "server", (typeof b.message === "string" ? b.message : `REST datasource "${def.id}" failed: ${res.status}`), {
+                status: res.status,
+                fieldErrors: hasFieldErrors ? b.fieldErrors : undefined,
+                formError: typeof b.formError === "string" ? b.formError : undefined,
+            });
+        }
+        throw makeDsError("server", `REST datasource "${def.id}" failed: ${res.status}`, { status: res.status });
+    }
     return res.json();
 }
 export function createDataSourceClient(deps) {

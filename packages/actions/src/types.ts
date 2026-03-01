@@ -165,7 +165,7 @@ export interface ActionRunnerDeps {
   dataRequestFailedCreator?: (payload: { requestId: string; error: string }) => { type: string; payload: unknown };
   dataSetByKeyCreator?: (payload: { key: string; value: unknown }) => { type: string; payload: unknown };
   applyFieldErrorsCreator?: (payload: { fieldErrors: Record<string, string> }) => { type: string; payload: unknown };
-  clearFieldErrorsCreator?: () => { type: string; payload?: unknown };
+  clearFieldErrorsCreator?: () => { type: string; payload: unknown };
   setFormErrorCreator?: (payload: { message?: string }) => { type: string; payload: unknown };
   setSubmittingCreator?: (payload: boolean) => { type: string; payload: unknown };
   dataSourceClient?: DataSourceClientLike;

@@ -46,6 +46,9 @@ import type { FormDoc, FormNode } from "@ai-low-code/engine";
 import type { DomainField } from "./domainModel.js";
 import { DataSourcesPanel } from "./DataSourcesPanel.jsx";
 import { mockFetch } from "./mockFetch.js";
+import { validateGovernance, type GovIssue } from "@ai-low-code/governance";
+import { migrateFormDoc } from "@ai-low-code/migrations";
+import { validateFormDoc } from "@ai-low-code/schema";
 
 const SAMPLE_INITIAL_VALUES: Record<string, unknown> = {
   form: {
@@ -116,6 +119,30 @@ export function StudioApp({
   const [toastSeverity, setToastSeverity] = useState<"success" | "info" | "warning" | "error">("info");
   const [lastActionError, setLastActionError] = useState<ActionError | null>(null);
   const [lastNav, setLastNav] = useState<string | null>(null);
+
+  const govResult = useMemo(() => validateGovernance(doc), [doc]);
+  const govDiagErrors = useMemo(() =>
+    govResult.errors.map((e) => ({
+      code: e.code,
+      message: e.message,
+      severity: "error" as const,
+      nodeId: e.nodeId,
+      path: e.path,
+    })),
+    [govResult.errors]
+  );
+  const govDiagWarnings = useMemo(() =>
+    govResult.warnings.map((w) => ({
+      code: w.code,
+      message: w.message,
+      severity: "warning" as const,
+      nodeId: w.nodeId,
+      path: w.path,
+    })),
+    [govResult.warnings]
+  );
+  const allDiagErrors = useMemo(() => [...lastErrors, ...govDiagErrors], [lastErrors, govDiagErrors]);
+  const allDiagWarnings = useMemo(() => [...lastWarnings, ...govDiagWarnings], [lastWarnings, govDiagWarnings]);
 
   const dsClient = useMemo(() => {
     const defs = (doc.dataSources ?? []).map((d) => {
@@ -325,6 +352,14 @@ export function StudioApp({
   };
 
   const handleExportJson = () => {
+    const schemaResult = validateFormDoc(doc);
+    const gov = validateGovernance(doc);
+    if (!schemaResult.ok || !gov.ok) {
+      setToastMsg(`Export blocked: ${[...schemaResult.errors.map((e) => e.message), ...gov.errors.map((e) => e.message)].slice(0, 3).join("; ")}`);
+      setToastSeverity("error");
+      setToastOpen(true);
+      return;
+    }
     const json = JSON.stringify(doc, null, 2);
     const blob = new Blob([json], { type: "application/json" });
     const url = URL.createObjectURL(blob);
@@ -456,7 +491,16 @@ export function StudioApp({
                 size="small"
                 value={canvasMode}
                 exclusive
-                onChange={(_, v) => v && setCanvasMode(v)}
+                onChange={(_, v) => {
+                  if (!v) return;
+                  if (v === "runtime" && !govResult.ok) {
+                    setToastMsg("Preview blocked: fix governance errors first");
+                    setToastSeverity("error");
+                    setToastOpen(true);
+                    return;
+                  }
+                  setCanvasMode(v);
+                }}
                 data-testid="canvas-mode-toggle"
               >
                 <ToggleButton value="design" sx={{ px: 1.5, py: 0.25, fontSize: "0.75rem" }}>Design</ToggleButton>
@@ -500,7 +544,7 @@ export function StudioApp({
                 onBindOptionsToDataSource={handleBindOptionsToDataSource}
               />
             </Box>
-            <DiagnosticsPanel errors={lastErrors} warnings={lastWarnings} onSelectNode={setSelectedNodeId} />
+            <DiagnosticsPanel errors={allDiagErrors} warnings={allDiagWarnings} onSelectNode={setSelectedNodeId} />
           </Paper>
         </Box>
       </DndContext>

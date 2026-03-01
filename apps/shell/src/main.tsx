@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useMemo } from "react";
 import ReactDOM from "react-dom/client";
+import { BrowserRouter, Routes, Route, useNavigate, Link } from "react-router-dom";
 import { ThemeProvider, CssBaseline } from "@mui/material";
 import Box from "@mui/material/Box";
 import AppBar from "@mui/material/AppBar";
@@ -27,6 +28,8 @@ import {
 import { evalAst } from "@ai-low-code/expr";
 import type { FormDoc } from "@ai-low-code/engine";
 import { mockFetch } from "./mockFetch.js";
+import { validateGovernance } from "@ai-low-code/governance";
+import { migrateFormDoc } from "@ai-low-code/migrations";
 
 import formRules from "../../../samples/form_rules.json";
 import formBasic from "../../../samples/form_basic.json";
@@ -81,9 +84,11 @@ const SAMPLES: Record<string, { doc: unknown; label: string; initialValues?: Rec
 const theme = createPlatformTheme();
 
 function ShellApp() {
+  const routerNavigate = useNavigate();
   const [selectedSample, setSelectedSample] = useState("form_rules");
   const [customDoc, setCustomDoc] = useState<FormDoc | null>(null);
   const [errors, setErrors] = useState<string[]>([]);
+  const [migrationBanner, setMigrationBanner] = useState<string | null>(null);
   const [toastOpen, setToastOpen] = useState(false);
   const [toastMsg, setToastMsg] = useState("");
   const [toastSeverity, setToastSeverity] = useState<"success" | "info" | "warning" | "error">("info");
@@ -92,11 +97,13 @@ function ShellApp() {
   const activeDoc = customDoc ?? (SAMPLES[selectedSample]?.doc as FormDoc);
   const activeValues = customDoc ? {} : SAMPLES[selectedSample]?.initialValues ?? {};
   const validation = validateFormDoc(activeDoc);
+  const govResult = useMemo(() => validation.ok ? validateGovernance(activeDoc) : null, [activeDoc, validation.ok]);
+  const canRender = validation.ok && (govResult?.ok ?? false);
 
   const engine = useMemo(() => {
-    if (!validation.ok) return null;
+    if (!canRender) return null;
     return createFormEngine(activeDoc, { env: { region: "IN" }, initialValues: activeValues });
-  }, [activeDoc, validation.ok]);
+  }, [activeDoc, canRender]);
 
   const dsClient = useMemo(() => {
     const docDs = (activeDoc as FormDoc)?.dataSources ?? [];
@@ -130,9 +137,7 @@ function ShellApp() {
       evalExpr: (ast, ctx) => evalAst(ast, ctx),
       navigate: (to) => {
         setLastRoute(to);
-        setToastMsg(`Navigate: ${to}`);
-        setToastSeverity("info");
-        setToastOpen(true);
+        routerNavigate(to);
       },
       toast: (opts) => {
         setToastMsg(opts.message);
@@ -152,6 +157,7 @@ function ShellApp() {
     setCustomDoc(null);
     setErrors([]);
     setLastRoute(null);
+    setMigrationBanner(null);
   }, []);
 
   const handleFileUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -161,14 +167,27 @@ function ShellApp() {
     reader.onload = () => {
       try {
         const parsed = JSON.parse(reader.result as string);
-        const result = validateFormDoc(parsed);
+        const migrated = migrateFormDoc(parsed);
+        if (migrated.migrated) {
+          setMigrationBanner(`Migrated from v${migrated.from} to v${migrated.to}: ${migrated.warnings.join("; ")}`);
+        } else {
+          setMigrationBanner(null);
+        }
+        const migratedDoc = migrated.doc;
+        const result = validateFormDoc(migratedDoc);
         if (!result.ok) {
           setErrors(result.errors.map((err) => `${err.path}: ${err.message}`));
           setCustomDoc(null);
-        } else {
-          setCustomDoc(parsed as FormDoc);
-          setErrors([]);
+          return;
         }
+        const gov = validateGovernance(migratedDoc);
+        if (!gov.ok) {
+          setErrors(gov.errors.map((err) => `[${err.code}] ${err.message}${err.nodeId ? ` (node: ${err.nodeId})` : ""}`));
+          setCustomDoc(null);
+          return;
+        }
+        setCustomDoc(migratedDoc as FormDoc);
+        setErrors([]);
       } catch (err) {
         setErrors([`JSON parse error: ${err instanceof Error ? err.message : String(err)}`]);
         setCustomDoc(null);
@@ -241,7 +260,20 @@ function ShellApp() {
           </Paper>
         )}
 
-        {validation.ok && engine && (
+        {validation.ok && govResult && !govResult.ok && errors.length === 0 && (
+          <Paper sx={{ p: 2, mb: 3 }}>
+            <Typography variant="subtitle2" color="error" gutterBottom>Governance Errors</Typography>
+            {govResult.errors.map((err, i) => (
+              <Alert key={i} severity="error" sx={{ mb: 0.5 }}>[{err.code}] {err.message}{err.nodeId ? ` (node: ${err.nodeId})` : ""}</Alert>
+            ))}
+          </Paper>
+        )}
+
+        {migrationBanner && (
+          <Alert severity="info" sx={{ mb: 2 }}>{migrationBanner}</Alert>
+        )}
+
+        {canRender && engine && (
           <Paper sx={{ p: 3 }}>
             <PageRenderer
               doc={activeDoc}
@@ -268,11 +300,41 @@ function ShellApp() {
   );
 }
 
+function DonePage() {
+  return (
+    <Box sx={{ minHeight: "100vh", bgcolor: "background.default" }}>
+      <AppBar position="static" elevation={1}>
+        <Toolbar variant="dense">
+          <Typography variant="h6" sx={{ flexGrow: 1, fontSize: "0.9rem" }}>
+            Runtime Shell
+          </Typography>
+        </Toolbar>
+      </AppBar>
+      <Box sx={{ maxWidth: 600, mx: "auto", p: 4, textAlign: "center" }}>
+        <Paper sx={{ p: 4 }}>
+          <Typography variant="h4" gutterBottom>Done!</Typography>
+          <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
+            Your form has been submitted successfully.
+          </Typography>
+          <Button component={Link} to="/" variant="contained">
+            Back to Forms
+          </Button>
+        </Paper>
+      </Box>
+    </Box>
+  );
+}
+
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <ThemeProvider theme={theme}>
       <CssBaseline />
-      <ShellApp />
+      <BrowserRouter>
+        <Routes>
+          <Route path="/" element={<ShellApp />} />
+          <Route path="/done" element={<DonePage />} />
+        </Routes>
+      </BrowserRouter>
     </ThemeProvider>
   </React.StrictMode>
 );

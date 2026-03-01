@@ -22,6 +22,8 @@ const initialState = {
     touchedByPath: {},
     dirtyByPath: {},
     errorsByPath: {},
+    formError: undefined,
+    submitting: false,
     ui: initialUi(),
     data: initialData(),
 };
@@ -107,6 +109,22 @@ export const engineSlice = createSlice({
         dataSetByKey: (state, action) => {
             state.data.byKey[action.payload.key] = action.payload.value;
         },
+        applyFieldErrors: (state, action) => {
+            for (const [path, msg] of Object.entries(action.payload.fieldErrors)) {
+                const existing = state.errorsByPath[path] ?? [];
+                state.errorsByPath[path] = [...existing, msg];
+            }
+        },
+        clearFieldErrors: (state) => {
+            state.errorsByPath = {};
+            state.formError = undefined;
+        },
+        setFormError: (state, action) => {
+            state.formError = action.payload.message;
+        },
+        setSubmitting: (state, action) => {
+            state.submitting = action.payload;
+        },
     },
 });
-export const { initForm, setValue, setTouched, setErrors, setUiState, resetForm, dataRequestStarted, dataRequestSucceeded, dataRequestFailed, dataSetByKey, } = engineSlice.actions;
+export const { initForm, setValue, setTouched, setErrors, setUiState, resetForm, dataRequestStarted, dataRequestSucceeded, dataRequestFailed, dataSetByKey, applyFieldErrors, clearFieldErrors, setFormError, setSubmitting, } = engineSlice.actions;

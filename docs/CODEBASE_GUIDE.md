@@ -20,6 +20,8 @@ This document is a comprehensive, beginner-friendly walkthrough of the entire co
    - 5.7 [packages/widgets-core — The Widget Library](#57-packageswidgets-core)
    - 5.8 [packages/studio-core — Studio Logic](#58-packagesstudio-core)
    - 5.9 [packages/theme — Shared Styling](#59-packagestheme)
+   - 5.10 [packages/governance — Security Validation](#510-packagesgovernance)
+   - 5.11 [packages/migrations — Schema Upgrades](#511-packagesmigrations)
 6. [The Apps](#6-the-apps)
    - 6.1 [apps/studio — The Form Designer](#61-appsstudio)
    - 6.2 [apps/shell — The Runtime Host](#62-appsshell)
@@ -31,8 +33,12 @@ This document is a comprehensive, beginner-friendly walkthrough of the entire co
 12. [How to Run the Project](#12-how-to-run-the-project)
 13. [How to Add a New Widget](#13-how-to-add-a-new-widget)
 14. [How to Add a New Action Type](#14-how-to-add-a-new-action-type)
-15. [Testing Strategy](#15-testing-strategy)
-16. [Glossary](#16-glossary)
+15. [Governance — packages/governance](#15-governance)
+16. [Migrations — packages/migrations](#16-migrations)
+17. [The Load Pipeline — How a Doc Gets Rendered](#17-the-load-pipeline)
+18. [Client-Side Navigation](#18-client-side-navigation)
+19. [Testing Strategy](#19-testing-strategy)
+20. [Glossary](#20-glossary)
 
 ---
 
@@ -103,7 +109,9 @@ The_AI_Low_Code_Platform/
 │   ├── renderer/           ← PageRenderer + NodeRenderer
 │   ├── widgets-core/       ← MUI widget components
 │   ├── studio-core/        ← Command pattern for editing FormDocs
-│   └── theme/              ← Shared MUI theme
+│   ├── theme/              ← Shared MUI theme
+│   ├── governance/         ← Security validation (allowlists)
+│   └── migrations/         ← Schema version upgrades
 ├── apps/                   ← Applications
 │   ├── studio/             ← Form designer (Vite + React)
 │   └── shell/              ← Runtime host (Vite + React)
@@ -112,6 +120,7 @@ The_AI_Low_Code_Platform/
 │   ├── form_basic.json     ← Simple form with 20 fields
 │   ├── form_lookup.json    ← Dynamic options from DataSources
 │   ├── form_big.json       ← Large stress-test form
+│   ├── form_submit.json    ← Submit form with validation + mock server
 │   └── domain_model_vendor.json  ← Domain model for scaffolding
 ├── docs/                   ← Documentation
 ├── package.json            ← Root monorepo config (npm workspaces)
@@ -621,6 +630,48 @@ The theme sets: Inter font family, 8px spacing, rounded corners (8px border radi
 
 ---
 
+### 5.10 `packages/governance`
+
+**Purpose**: Validates that a FormDoc follows security and governance rules — no arbitrary JavaScript, only allowlisted widget types, binding paths, action types, and expressions.
+
+**Key file**: `src/validate.ts`
+
+```typescript
+import { validateGovernance } from "@ai-low-code/governance";
+
+const result = validateGovernance(doc);
+// result.ok      → true if no governance errors
+// result.errors  → GovIssue[] (things that block rendering)
+// result.warnings → GovIssue[] (things that should be fixed)
+```
+
+**What it checks**: Widget type allowlist, prop allowlist, binding path allowlist, event/action allowlist, SetValue path restrictions, expression depth/size limits, document size limits.
+
+See [Section 15](#15-governance) for the full list of checks.
+
+---
+
+### 5.11 `packages/migrations`
+
+**Purpose**: Automatically upgrades old FormDoc versions to the latest schema format. This ensures backward compatibility — old documents "just work".
+
+**Key file**: `src/migrate.ts`
+
+```typescript
+import { migrateFormDoc } from "@ai-low-code/migrations";
+
+const result = migrateFormDoc(oldDoc);
+// result.doc      → upgraded document (deep cloned)
+// result.migrated → true if migration was applied
+// result.warnings → what changed
+```
+
+**Current migrations**: `1.0 → 1.1` (legacy widget type renames).
+
+See [Section 16](#16-migrations) for how to add new migrations.
+
+---
+
 ## 6. The Apps
 
 ### 6.1 `apps/studio` — The Form Designer
@@ -1085,18 +1136,148 @@ case "OpenDialog": {
 
 ---
 
-## 15. Testing Strategy
+## 15. Governance — `packages/governance`
+
+**Location**: `packages/governance/src/`
+
+Governance is the "security guard" of the platform. It ensures no arbitrary JavaScript, no unknown widget types, no suspicious bindings, and no oversized documents can slip into the runtime.
+
+### What It Checks
+
+| Check | Code Prefix | Severity |
+|-------|------------|----------|
+| Unknown widget type (not in `core.*` / `layout.*`) | `GOV_WIDGET_UNKNOWN` | Error |
+| Legacy widget type (e.g., `FormGrid` instead of `layout.FormGrid`) | `GOV_WIDGET_LEGACY` | Warning |
+| Unknown prop key on a widget | `GOV_PROP_UNKNOWN` | Warning |
+| Value binding not under `form.values.*` | `GOV_BINDING_BAD_VALUE` | Error |
+| Options binding not under `data.byKey.*` or `form.options.*` | `GOV_BINDING_BAD_OPTIONS` | Error |
+| Unknown event name (not onChange/onClick/onBlur) | `GOV_EVENT_UNKNOWN` | Error |
+| Unknown action type in events | `GOV_ACTION_UNKNOWN` | Error |
+| SetValue path not in allowlist (`form.values.*`, `ui.*`) | `GOV_ACTION_BAD_PATH` | Error |
+| Expression AST too deep (max 20) | `GOV_EXPR_TOO_DEEP` | Error |
+| Expression AST too many nodes (max 200) | `GOV_EXPR_TOO_LARGE` | Error |
+| Too many nodes in doc (max 500) | `GOV_TOO_MANY_NODES` | Error |
+| Document too large in bytes (max 2MB) | `GOV_DOC_TOO_LARGE` | Error |
+
+### How to Use
+
+```typescript
+import { validateGovernance } from "@ai-low-code/governance";
+
+const result = validateGovernance(myDoc);
+// result.ok        → boolean (true if no errors)
+// result.errors    → GovIssue[] with severity "error"
+// result.warnings  → GovIssue[] with severity "warning"
+```
+
+Each `GovIssue` has: `severity`, `code`, `message`, `nodeId?`, `path?`.
+
+### Where It Runs
+
+- **Studio**: Runs continuously. Governance errors appear in the Diagnostics panel. Export is blocked if errors exist. Preview mode is blocked if errors exist.
+- **Shell**: Runs on load/upload. If governance fails, the form is **not rendered** — an error page is shown instead.
+
+---
+
+## 16. Migrations — `packages/migrations`
+
+**Location**: `packages/migrations/src/`
+
+Migrations handle **backward compatibility** when the FormDoc schema evolves. Old documents are automatically upgraded to the latest format.
+
+### Current Migrations
+
+| From | To | What Changes |
+|------|-----|-------------|
+| `1.0` | `1.1` | Legacy widget type IDs (`FormGrid` → `layout.FormGrid`, `Section` → `layout.Section`, `Stack` → `layout.Stack`) |
+
+### How to Use
+
+```typescript
+import { migrateFormDoc, CURRENT_SCHEMA_VERSION } from "@ai-low-code/migrations";
+
+const result = migrateFormDoc(oldDoc);
+// result.doc       → the migrated document (deep cloned, original is untouched)
+// result.from      → original schemaVersion
+// result.to        → new schemaVersion
+// result.migrated  → boolean (true if any migration was applied)
+// result.warnings  → string[] describing what changed
+```
+
+### Where It Runs
+
+- **Shell**: On file upload, before schema + governance validation. A banner shows if migration occurred.
+- **Studio**: Can be integrated on import/load.
+
+### How to Add a Migration
+
+1. Add a new function in `packages/migrations/src/migrate.ts` (e.g., `migrate_1_1_to_1_2`).
+2. Add it to the `MIGRATIONS` array with `from` and `to` versions.
+3. Update `CURRENT_SCHEMA_VERSION`.
+4. Add tests.
+
+---
+
+## 17. The Load Pipeline — How a Doc Gets Rendered
+
+When a FormDoc is loaded (in Shell or Studio), it goes through a pipeline:
+
+```
+┌─────────┐   ┌───────────┐   ┌──────────────┐   ┌────────────────┐   ┌──────────┐
+│ Raw JSON │ → │ Migrate   │ → │ Schema       │ → │ Governance     │ → │ Render   │
+│          │   │ (upgrade) │   │ Validate     │   │ Validate       │   │ (engine  │
+│          │   │           │   │ (structure)  │   │ (security)     │   │  + UI)   │
+└─────────┘   └───────────┘   └──────────────┘   └────────────────┘   └──────────┘
+                                    ↓ fail              ↓ fail
+                              Show schema errors   Show gov errors
+                              (do NOT render)      (do NOT render)
+```
+
+This means:
+1. **Migrate**: Old docs are upgraded automatically.
+2. **Schema validate**: Checks JSON structure matches the FormDoc schema.
+3. **Governance validate**: Checks security rules (allowlisted types, paths, actions).
+4. **Render**: Only if both validations pass.
+
+---
+
+## 18. Client-Side Navigation
+
+The Shell app uses **react-router-dom** for real client-side navigation.
+
+### Routes
+
+| Path | Component | Description |
+|------|-----------|-------------|
+| `/` | `ShellApp` | Main form renderer with sample selector |
+| `/done` | `DonePage` | Success page shown after form submission |
+
+### How Navigate Action Works
+
+When a `Navigate` action runs in the Shell runtime:
+- The `navigate` dep passed to the ActionRunner calls `react-router`'s `useNavigate()` hook.
+- This performs a real client-side route change (e.g., to `/done`).
+
+In Studio preview mode, navigation is displayed as a toast notification (since Studio doesn't have real routes).
+
+In design mode, the Navigate action is suppressed entirely (no side effects).
+
+---
+
+## 19. Testing Strategy
 
 The project uses **Vitest** for testing and **React Testing Library** for component tests.
 
 | Package | What's tested | Test count |
 |---------|--------------|-----------|
 | `expr` | Expression evaluation, dependency extraction, type checking | 25 |
-| `engine` | Store initialization, data slice, validation, submit mapping | 14 |
-| `actions` | All action types, path validation, design mode suppression, CallDataSource | 18 |
+| `engine` | Store initialization, data slice, validation, submit mapping, formError/submitting | 18 |
+| `actions` | All action types, path validation, design mode suppression, CallDataSource, SubmitForm | 22 |
 | `datasources` | Mock delay/failRate, REST fetch, abort signals | 7 |
-| `schema` | All sample docs validate, invalid docs produce errors, event schemas | 11 |
+| `schema` | All sample docs validate, invalid docs produce errors, event schemas | 12 |
 | `renderer` | Rendering, visibility, label resolution, action integration, onLoad | 12 |
+| `governance` | Widget allowlist, prop allowlist, binding paths, action paths, expression limits, doc size | 14 |
+| `migrations` | Legacy widget type migration, immutability, version handling | 5 |
 | `studio-core` | Commands, constraints, invariants, drop resolution, layout | 66 |
 | `studio` | Smoke tests, add/delete, drag-and-drop, inspector editing | 19 |
 
@@ -1106,7 +1287,7 @@ The project uses **Vitest** for testing and **React Testing Library** for compon
 
 ---
 
-## 16. Glossary
+## 20. Glossary
 
 | Term | Definition |
 |------|-----------|
@@ -1128,3 +1309,7 @@ The project uses **Vitest** for testing and **React Testing Library** for compon
 | **Governance** | No arbitrary JavaScript — all logic is declarative JSON structures |
 | **Canonical ID** | The standard naming: `layout.*` for containers, `core.*` for inputs |
 | **Monorepo** | All packages and apps in one repository, managed by npm workspaces |
+| **GovIssue** | A structured governance validation issue with code, message, severity, and optional nodeId |
+| **Migration** | An automatic upgrade from one FormDoc schemaVersion to the next |
+| **Load Pipeline** | The sequence: Migrate → Schema Validate → Governance Validate → Render |
+| **react-router** | Client-side routing library used in Shell for real page navigation |

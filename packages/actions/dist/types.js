@@ -10,4 +10,5 @@ export const ACTION_TYPES = [
     "If",
     "CallDataSource",
     "SetData",
+    "SubmitForm",
 ];

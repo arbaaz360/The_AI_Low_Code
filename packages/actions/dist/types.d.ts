@@ -43,8 +43,16 @@ export interface SetDataAction {
     key: string;
     value: Expr;
 }
-export type Action = SetValueAction | ValidateFormAction | ToastAction | NavigateAction | BatchAction | IfAction | CallDataSourceAction | SetDataAction;
-export declare const ACTION_TYPES: readonly ["SetValue", "ValidateForm", "Toast", "Navigate", "Batch", "If", "CallDataSource", "SetData"];
+export interface SubmitFormAction {
+    type: "SubmitForm";
+    dataSourceId: string;
+    resultKey?: string;
+    requestKey?: string;
+    onSuccess?: Action[];
+    onError?: Action[];
+}
+export type Action = SetValueAction | ValidateFormAction | ToastAction | NavigateAction | BatchAction | IfAction | CallDataSourceAction | SetDataAction | SubmitFormAction;
+export declare const ACTION_TYPES: readonly ["SetValue", "ValidateForm", "Toast", "Navigate", "Batch", "If", "CallDataSource", "SetData", "SubmitForm"];
 export type ActionType = (typeof ACTION_TYPES)[number];
 export interface NodeEvents {
     onChange?: Action[];
@@ -87,6 +95,7 @@ export interface ActionRunnerDeps {
     getState: () => {
         engine: {
             values: Record<string, unknown>;
+            errorsByPath: Record<string, string[]>;
             data: {
                 byKey: Record<string, unknown>;
             };
@@ -128,8 +137,29 @@ export interface ActionRunnerDeps {
         type: string;
         payload: unknown;
     };
+    applyFieldErrorsCreator?: (payload: {
+        fieldErrors: Record<string, string>;
+    }) => {
+        type: string;
+        payload: unknown;
+    };
+    clearFieldErrorsCreator?: () => {
+        type: string;
+        payload: unknown;
+    };
+    setFormErrorCreator?: (payload: {
+        message?: string;
+    }) => {
+        type: string;
+        payload: unknown;
+    };
+    setSubmittingCreator?: (payload: boolean) => {
+        type: string;
+        payload: unknown;
+    };
     dataSourceClient?: DataSourceClientLike;
     validateAll?: () => void;
+    buildSubmitRequest?: () => Record<string, unknown>;
     evalExpr: (ast: Expr, ctx: {
         get: (path: string) => unknown;
     }) => unknown;
