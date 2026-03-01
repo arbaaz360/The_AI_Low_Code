@@ -21,6 +21,10 @@ export type Command = {
     nodeId: string;
     partialBindings: Record<string, unknown>;
 } | {
+    type: "UpdateEvents";
+    nodeId: string;
+    events: Record<string, unknown[]>;
+} | {
     type: "AddNode";
     node: FormNode;
     parentId: string;
@@ -34,6 +38,12 @@ export type Command = {
     nodeId: string;
     parentId: string;
     index: number;
+} | {
+    type: "SetDataSources";
+    dataSources: FormDoc["dataSources"];
+} | {
+    type: "SetPageEvents";
+    pageEvents: FormDoc["pageEvents"];
 };
 export interface ApplyResult {
     doc: FormDoc;

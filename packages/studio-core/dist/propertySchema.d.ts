@@ -5,7 +5,7 @@
 export interface PropSchemaField {
     key: string;
     label: string;
-    type: "string" | "enum";
+    type: "string" | "number" | "enum";
     optional?: boolean;
     default?: unknown;
     /** For type "enum": allowed values */

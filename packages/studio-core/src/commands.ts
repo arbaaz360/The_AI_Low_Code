@@ -27,6 +27,9 @@ export function applyCommand(doc: FormDoc, command: Command): ApplyResult {
     case "UpdateBindings":
       newDoc = applyUpdateBindings(doc, command.nodeId, command.partialBindings);
       break;
+    case "UpdateEvents":
+      newDoc = applyUpdateEvents(doc, command.nodeId, command.events);
+      break;
     case "AddNode": {
       const parent = doc.nodes[command.parentId];
       if (!parent) {
@@ -79,6 +82,12 @@ export function applyCommand(doc: FormDoc, command: Command): ApplyResult {
       newDoc = applyMoveNode(doc, command.nodeId, command.parentId, command.index);
       break;
     }
+    case "SetDataSources":
+      newDoc = { ...doc, dataSources: command.dataSources };
+      break;
+    case "SetPageEvents":
+      newDoc = { ...doc, pageEvents: command.pageEvents };
+      break;
     default: {
       const _: never = command;
       return { doc, diagnostics: [] };
@@ -153,6 +162,20 @@ function applyUpdateLayout(
   };
 
   const newNode: FormNode = { ...node, layout: merged };
+  const newNodes = { ...doc.nodes, [nodeId]: newNode };
+  return { ...doc, nodes: newNodes };
+}
+
+function applyUpdateEvents(
+  doc: FormDoc,
+  nodeId: string,
+  events: Record<string, unknown[]>
+): FormDoc {
+  const node = doc.nodes[nodeId];
+  if (!node) return doc;
+
+  const merged = { ...(node.events ?? {}), ...events } as FormNode["events"];
+  const newNode: FormNode = { ...node, events: merged };
   const newNodes = { ...doc.nodes, [nodeId]: newNode };
   return { ...doc, nodes: newNodes };
 }

@@ -90,6 +90,12 @@ export function createFormEngine(formDoc, options = {}) {
     function makeSelectNodeDisabled(nodeId) {
         return (state) => state.engine.ui.disabledByNodeId[nodeId] ?? false;
     }
+    function makeSelectDataByKey(key) {
+        return (state) => state.engine.data.byKey[key];
+    }
+    function makeSelectRequestStatus(key) {
+        return (state) => state.engine.data.requests[key]?.status ?? "idle";
+    }
     function validateAll() {
         const state = store.getState().engine;
         const doc = state.formDoc;
@@ -180,6 +186,8 @@ export function createFormEngine(formDoc, options = {}) {
             makeSelectError,
             makeSelectNodeVisible,
             makeSelectNodeDisabled,
+            makeSelectDataByKey,
+            makeSelectRequestStatus,
         },
         validateAll,
         buildSubmitRequest,

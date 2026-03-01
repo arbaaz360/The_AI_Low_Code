@@ -2,6 +2,7 @@ import React from "react";
 import Box from "@mui/material/Box";
 import Grid from "@mui/material/Grid";
 import Typography from "@mui/material/Typography";
+import Paper from "@mui/material/Paper";
 import type { WidgetProps } from "@ai-low-code/renderer";
 
 function getSpans(layout: Record<string, unknown> | undefined): { xs: number; md: number } {
@@ -43,13 +44,14 @@ export function Section({
   });
 
   return (
-    <Box
+    <Paper
+      variant="outlined"
       data-nodeid={mode === "design" ? nodeId : undefined}
       data-nodetype={mode === "design" ? nodeType : undefined}
-      sx={{ mb: 2 }}
+      sx={{ mb: 2, p: 2, borderRadius: 1.5 }}
     >
       {title && (
-        <Typography variant="h6" sx={{ mb: 1 }}>
+        <Typography variant="subtitle1" sx={{ mb: 1.5, fontWeight: 600 }}>
           {title}
         </Typography>
       )}
@@ -64,6 +66,6 @@ export function Section({
       ) : (
         <Box>{children}</Box>
       )}
-    </Box>
+    </Paper>
   );
 }

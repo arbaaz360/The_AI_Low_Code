@@ -1,0 +1,26 @@
+{
+  "name": "@ai-low-code/theme",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "echo no tests",
+    "lint": "echo lint"
+  },
+  "dependencies": {
+    "@mui/material": "^5.16.0",
+    "@emotion/react": "^11.13.0",
+    "@emotion/styled": "^11.13.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0"
+  }
+}

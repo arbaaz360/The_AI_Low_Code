@@ -2,6 +2,7 @@
 const CONTAINER_TYPES = new Set([
   "layout.FormGrid",
   "FormGrid",
+  "layout.Section",
   "core.Section",
   "Section",
   "layout.Stack",
@@ -11,9 +12,14 @@ const CONTAINER_TYPES = new Set([
 /** Leaf widget types that cannot contain children. */
 const LEAF_TYPES = new Set([
   "core.TextInput",
+  "core.TextArea",
+  "core.NumberInput",
+  "core.DateInput",
   "core.Checkbox",
+  "core.Switch",
   "core.Select",
   "core.RadioGroup",
+  "core.Button",
 ]);
 
 /**
@@ -30,7 +36,6 @@ export function isContainerType(type: string): boolean {
 export function canContain(parentType: string, childType: string): boolean {
   if (LEAF_TYPES.has(parentType)) return false;
   if (CONTAINER_TYPES.has(parentType)) return true;
-  // Unknown types: treat as non-container (conservative)
   return false;
 }
 
@@ -38,13 +43,13 @@ export function canContain(parentType: string, childType: string): boolean {
 const GRID_CONTAINER_TYPES = new Set([
   "layout.FormGrid",
   "FormGrid",
+  "layout.Section",
   "core.Section",
   "Section",
 ]);
 
 /**
  * Returns true if the type is a grid container (supports layout.span for children).
- * Used by Inspector to show Layout section, and potentially drop rules.
  */
 export function isGridContainerType(type: string): boolean {
   return GRID_CONTAINER_TYPES.has(type);

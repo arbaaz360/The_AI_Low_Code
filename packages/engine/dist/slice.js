@@ -12,6 +12,10 @@ function buildInitialValues(paths) {
     }
     return values;
 }
+const initialData = () => ({
+    byKey: {},
+    requests: {},
+});
 const initialState = {
     formDoc: null,
     values: {},
@@ -19,6 +23,7 @@ const initialState = {
     dirtyByPath: {},
     errorsByPath: {},
     ui: initialUi(),
+    data: initialData(),
 };
 export const engineSlice = createSlice({
     name: "engine",
@@ -35,6 +40,7 @@ export const engineSlice = createSlice({
             state.dirtyByPath = {};
             state.errorsByPath = {};
             state.ui = initialUi();
+            state.data = initialData();
         },
         setValue: (state, action) => {
             const { path, value } = action.payload;
@@ -71,6 +77,36 @@ export const engineSlice = createSlice({
             state.errorsByPath = {};
             state.ui = initialUi();
         },
+        dataRequestStarted: (state, action) => {
+            const { requestId, dataSourceId } = action.payload;
+            state.data.requests[requestId] = {
+                requestId,
+                dataSourceId,
+                status: "loading",
+                startedAt: Date.now(),
+            };
+        },
+        dataRequestSucceeded: (state, action) => {
+            const { requestId, resultKey, result } = action.payload;
+            const req = state.data.requests[requestId];
+            if (req) {
+                req.status = "success";
+                req.finishedAt = Date.now();
+            }
+            state.data.byKey[resultKey] = result;
+        },
+        dataRequestFailed: (state, action) => {
+            const { requestId, error } = action.payload;
+            const req = state.data.requests[requestId];
+            if (req) {
+                req.status = "error";
+                req.finishedAt = Date.now();
+                req.error = error;
+            }
+        },
+        dataSetByKey: (state, action) => {
+            state.data.byKey[action.payload.key] = action.payload.value;
+        },
     },
 });
-export const { initForm, setValue, setTouched, setErrors, setUiState, resetForm, } = engineSlice.actions;
+export const { initForm, setValue, setTouched, setErrors, setUiState, resetForm, dataRequestStarted, dataRequestSucceeded, dataRequestFailed, dataSetByKey, } = engineSlice.actions;

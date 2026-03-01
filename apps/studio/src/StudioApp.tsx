@@ -8,6 +8,14 @@ import Paper from "@mui/material/Paper";
 import IconButton from "@mui/material/IconButton";
 import Tabs from "@mui/material/Tabs";
 import Tab from "@mui/material/Tab";
+import Menu from "@mui/material/Menu";
+import MenuItem from "@mui/material/MenuItem";
+import ListItemText from "@mui/material/ListItemText";
+import Divider from "@mui/material/Divider";
+import ToggleButton from "@mui/material/ToggleButton";
+import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
+import Snackbar from "@mui/material/Snackbar";
+import Alert from "@mui/material/Alert";
 import {
   DndContext,
   PointerSensor,
@@ -27,10 +35,16 @@ import { useDocHistory } from "./useDocHistory.js";
 import { processDragEnd } from "./dropHandling.js";
 import { loadDomainModel, getEntityFields } from "./domainModel.js";
 import { buildNodeFromDomainField, buildOptionsInitialValues } from "./buildNodeFromField.js";
+import { createActionRunner, type ActionRunner, type ActionError } from "@ai-low-code/actions";
+import { createDataSourceRegistry, createDataSourceClient } from "@ai-low-code/datasources";
+import {
+  dataRequestStarted, dataRequestSucceeded, dataRequestFailed, dataSetByKey,
+} from "@ai-low-code/engine";
+import { evalAst } from "@ai-low-code/expr";
 import type { FormDoc, FormNode } from "@ai-low-code/engine";
 import type { DomainField } from "./domainModel.js";
+import { DataSourcesPanel } from "./DataSourcesPanel.jsx";
 
-/** Initial form.options and form.values for sample form */
 const SAMPLE_INITIAL_VALUES: Record<string, unknown> = {
   form: {
     values: { accountType: "company" },
@@ -47,12 +61,30 @@ const SAMPLE_INITIAL_VALUES: Record<string, unknown> = {
   },
 };
 
+interface WidgetPaletteItem {
+  type: string;
+  label: string;
+  isContainer: boolean;
+}
+
+const WIDGET_PALETTE: WidgetPaletteItem[] = [
+  { type: "layout.Section", label: "Section", isContainer: true },
+  { type: "layout.Stack", label: "Stack", isContainer: true },
+  { type: "core.TextInput", label: "Text Input", isContainer: false },
+  { type: "core.TextArea", label: "Text Area", isContainer: false },
+  { type: "core.NumberInput", label: "Number Input", isContainer: false },
+  { type: "core.DateInput", label: "Date Input", isContainer: false },
+  { type: "core.Select", label: "Select", isContainer: false },
+  { type: "core.Checkbox", label: "Checkbox", isContainer: false },
+  { type: "core.Switch", label: "Switch", isContainer: false },
+  { type: "core.RadioGroup", label: "Radio Group", isContainer: false },
+  { type: "core.Button", label: "Button", isContainer: false },
+];
+
 interface StudioAppProps {
   doc: FormDoc;
   onDocChange?: (doc: FormDoc) => void;
-  /** For testing: inject domain model to skip fetch. Pass null to disable domain UI without fetch. */
   initialDomainModel?: Awaited<ReturnType<typeof loadDomainModel>> | null;
-  /** URL to fetch domain model from (runtime only; ignored when initialDomainModel is provided) */
   domainModelUrl?: string;
 }
 
@@ -65,7 +97,9 @@ export function StudioApp({
   const { doc, apply, undo, redo, canUndo, canRedo, lastErrors, lastWarnings } = useDocHistory(initialDoc);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [leftTab, setLeftTab] = useState(0);
+  const [canvasMode, setCanvasMode] = useState<"design" | "runtime">("design");
   const [domainModel, setDomainModel] = useState<Awaited<ReturnType<typeof loadDomainModel>> | null>(null);
+  const [paletteAnchor, setPaletteAnchor] = useState<HTMLElement | null>(null);
   const engineRef = useRef<ReturnType<typeof createFormEngine> | null>(null);
   const [engine, setEngine] = useState(() =>
     createFormEngine(initialDoc, {
@@ -74,6 +108,59 @@ export function StudioApp({
     })
   );
   engineRef.current = engine;
+
+  const [toastOpen, setToastOpen] = useState(false);
+  const [toastMsg, setToastMsg] = useState("");
+  const [toastSeverity, setToastSeverity] = useState<"success" | "info" | "warning" | "error">("info");
+  const [lastActionError, setLastActionError] = useState<ActionError | null>(null);
+  const [lastNav, setLastNav] = useState<string | null>(null);
+
+  const dsClient = useMemo(() => {
+    const defs = (doc.dataSources ?? []).map((d) => {
+      if (d.kind === "rest") {
+        return { id: d.id, kind: "rest" as const, name: d.name, method: (d.method ?? "GET") as "GET" | "POST", url: d.url ?? "" };
+      }
+      return { id: d.id, kind: "mock" as const, name: d.name, response: d.response, delayMs: d.delayMs, failRate: d.failRate };
+    });
+    const registry = createDataSourceRegistry(defs);
+    return createDataSourceClient({ registry });
+  }, [doc.dataSources]);
+
+  const actionRunner: ActionRunner = useMemo(() => {
+    return createActionRunner({
+      dispatch: (a) => engine.store.dispatch(a),
+      getState: () => engine.store.getState() as { engine: { values: Record<string, unknown>; data: { byKey: Record<string, unknown> } } },
+      setValueActionCreator: (p) => engine.actions.setValue(p),
+      dataRequestStartedCreator: (p) => dataRequestStarted(p),
+      dataRequestSucceededCreator: (p) => dataRequestSucceeded(p),
+      dataRequestFailedCreator: (p) => dataRequestFailed(p),
+      dataSetByKeyCreator: (p) => dataSetByKey(p),
+      dataSourceClient: dsClient,
+      validateAll: () => engine.validateAll(),
+      evalExpr: (ast, ctx) => evalAst(ast, ctx),
+      navigate: (to) => {
+        setLastNav(to);
+        setToastMsg(`Navigate: ${to}`);
+        setToastSeverity("info");
+        setToastOpen(true);
+      },
+      toast: (opts) => {
+        setToastMsg(opts.message);
+        setToastSeverity((opts.severity as "success" | "info" | "warning" | "error") ?? "info");
+        setToastOpen(true);
+      },
+      telemetry: {
+        onActionStart: (action, ctx) => console.log(`[Action] ${action.type} start`, ctx.nodeId),
+        onActionEnd: (action) => console.log(`[Action] ${action.type} end`),
+        onActionError: (action, ctx, err) => {
+          console.error(`[Action] ${action.type} error`, err);
+          if (typeof err === "object" && err !== null && "message" in err) {
+            setLastActionError(err as ActionError);
+          }
+        },
+      },
+    });
+  }, [engine, dsClient]);
 
   useEffect(() => {
     onDocChange?.(doc);
@@ -125,13 +212,30 @@ export function StudioApp({
   const handleUpdateProps = (nodeId: string, partialProps: Record<string, unknown>) => {
     apply({ type: "UpdateProps", nodeId, partialProps });
   };
-
   const handleUpdateLayout = (nodeId: string, partialLayout: Record<string, unknown>) => {
     apply({ type: "UpdateLayout", nodeId, partialLayout });
   };
-
   const handleUpdateBindings = (nodeId: string, partialBindings: Record<string, unknown>) => {
     apply({ type: "UpdateBindings", nodeId, partialBindings });
+  };
+  const handleUpdateEvents = (nodeId: string, events: Record<string, unknown[]>) => {
+    apply({ type: "UpdateEvents", nodeId, events });
+  };
+
+  const handleBindOptionsToDataSource = (nodeId: string, dataSourceId: string, resultKey: string) => {
+    apply({ type: "UpdateBindings", nodeId, partialBindings: { options: `data.byKey.${resultKey}` } });
+
+    const existing = (doc.pageEvents?.onLoad ?? []) as Array<{ type: string; dataSourceId?: string; resultKey?: string }>;
+    const alreadyBound = existing.some(
+      (a) => a.type === "CallDataSource" && a.dataSourceId === dataSourceId && a.resultKey === resultKey
+    );
+    if (!alreadyBound) {
+      const newOnLoad = [
+        ...existing,
+        { type: "CallDataSource", dataSourceId, resultKey, requestKey: `req_${resultKey}` },
+      ];
+      apply({ type: "SetPageEvents", pageEvents: { onLoad: newOnLoad } });
+    }
   };
 
   const findParent = (nodeId: string): FormNode | null => {
@@ -144,40 +248,15 @@ export function StudioApp({
 
   const getSelectedIndex = (): number => {
     if (!selectedNodeId) return -1;
-    const parent = findParent(selectedNodeId);
-    if (!parent) return -1;
-    return (parent.children ?? []).indexOf(selectedNodeId);
+    const p = findParent(selectedNodeId);
+    if (!p) return -1;
+    return (p.children ?? []).indexOf(selectedNodeId);
   };
 
   const parent = selectedNodeId ? findParent(selectedNodeId) : null;
   const selectedIndex = getSelectedIndex();
   const canMoveUp = parent && selectedIndex > 0;
   const canMoveDown = parent && selectedIndex >= 0 && selectedIndex < (parent.children?.length ?? 0) - 1;
-
-  const handleAddSection = () => {
-    const id = `section_${Date.now()}`;
-    const node: FormNode = {
-      id,
-      type: "core.Section",
-      children: [],
-      props: { title: "New Section" },
-    };
-    apply({ type: "AddNode", node, parentId: doc.rootNodeId, index: (doc.nodes[doc.rootNodeId]?.children ?? []).length });
-    setSelectedNodeId(id);
-  };
-
-  const handleAddTextInput = () => {
-    const target = resolveInsertTarget();
-    if (!target) return;
-    const id = `textInput_${Date.now()}`;
-    const node: FormNode = {
-      id,
-      type: "core.TextInput",
-      bindings: { value: `form.values.${id}` },
-    };
-    apply({ type: "AddNode", node, parentId: target.parentId, index: target.index });
-    setSelectedNodeId(id);
-  };
 
   const resolveInsertTarget = (): { parentId: string; index: number } | null => {
     const rootNode = doc.nodes[doc.rootNodeId] as FormNode | undefined;
@@ -194,6 +273,25 @@ export function StudioApp({
     if (!p) return { parentId: doc.rootNodeId, index: (rootNode.children ?? []).length };
     const idx = (p.children ?? []).indexOf(selectedNodeId) + 1;
     return { parentId: p.id, index: idx };
+  };
+
+  const handleAddWidget = (item: WidgetPaletteItem) => {
+    setPaletteAnchor(null);
+    const target = item.isContainer
+      ? { parentId: doc.rootNodeId, index: (doc.nodes[doc.rootNodeId]?.children ?? []).length }
+      : resolveInsertTarget();
+    if (!target) return;
+    const suffix = Date.now();
+    const shortName = item.type.split(".").pop()!.toLowerCase();
+    const id = `${shortName}_${suffix}`;
+    const node: FormNode = {
+      id,
+      type: item.type,
+      ...(item.isContainer ? { children: [], props: item.type.includes("Section") ? { title: "New Section" } : {} } : {}),
+      ...(!item.isContainer ? { bindings: { value: `form.values.${id}` } } : {}),
+    };
+    apply({ type: "AddNode", node, parentId: target.parentId, index: target.index });
+    setSelectedNodeId(id);
   };
 
   const handleAddDomainField = (field: DomainField) => {
@@ -214,20 +312,31 @@ export function StudioApp({
     if (!selectedNodeId || !parent) return;
     apply({ type: "MoveNode", nodeId: selectedNodeId, parentId: parent.id, index: selectedIndex - 1 });
   };
-
   const handleMoveDown = () => {
     if (!selectedNodeId || !parent) return;
     apply({ type: "MoveNode", nodeId: selectedNodeId, parentId: parent.id, index: selectedIndex + 1 });
+  };
+
+  const handleExportJson = () => {
+    const json = JSON.stringify(doc, null, 2);
+    const blob = new Blob([json], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "form_doc.json";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleCopyJson = () => {
+    navigator.clipboard.writeText(JSON.stringify(doc, null, 2)).catch(() => {});
   };
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
 
   const handleDragEnd = useCallback(
     (event: DragEndEvent) => {
-      processDragEnd(doc, event, apply, {
-        selectedNodeId,
-        setSelectedNodeId,
-      });
+      processDragEnd(doc, event, apply, { selectedNodeId, setSelectedNodeId });
     },
     [doc, apply, selectedNodeId]
   );
@@ -239,159 +348,165 @@ export function StudioApp({
       : undefined;
     const base = prevValues ?? SAMPLE_INITIAL_VALUES;
     const opts = buildOptionsInitialValues(domainFields);
-    const formOpts =
-      (base.form as Record<string, unknown>)?.options ?? ({} as Record<string, unknown>);
+    const formOpts = (base.form as Record<string, unknown>)?.options ?? ({} as Record<string, unknown>);
     const mergedOptions = { ...formOpts, ...opts };
     const initialValues: Record<string, unknown> = {
       ...base,
-      form: {
-        ...(base.form as Record<string, unknown>),
-        options: mergedOptions,
-      },
+      form: { ...(base.form as Record<string, unknown>), options: mergedOptions },
     };
-    const newEngine = createFormEngine(doc, {
-      env: { region: "IN" },
-      initialValues,
-    });
+    const newEngine = createFormEngine(doc, { env: { region: "IN" }, initialValues });
     setEngine(newEngine);
   }, [doc, domainFields]);
 
   return (
-    <Box sx={{ display: "flex", flexDirection: "column", height: "100vh" }}>
-      <AppBar position="static">
-        <Toolbar>
-          <Typography variant="h6" sx={{ flexGrow: 1 }}>
-            {selectedNodeId ?? "Form Designer"}
+    <Box sx={{ display: "flex", flexDirection: "column", height: "100vh", bgcolor: "background.default" }}>
+      <AppBar position="static" elevation={1} sx={{ zIndex: 10 }}>
+        <Toolbar variant="dense" sx={{ gap: 0.5, minHeight: 48 }}>
+          <Typography variant="h6" sx={{ flexGrow: 1, fontSize: "0.9rem" }} noWrap>
+            {selectedNodeId ? `${doc.nodes[selectedNodeId]?.type ?? ""} (${selectedNodeId})` : "Form Designer"}
           </Typography>
+
           <Button
-            data-testid="btn-add-section"
+            data-testid="btn-add-widget"
             color="inherit"
             size="small"
-            onClick={handleAddSection}
+            onClick={(e) => setPaletteAnchor(e.currentTarget)}
           >
-            Add Section
+            + Add Widget
           </Button>
-          <Button
-            data-testid="btn-add-textinput"
-            color="inherit"
-            size="small"
-            onClick={handleAddTextInput}
+          <Menu
+            anchorEl={paletteAnchor}
+            open={Boolean(paletteAnchor)}
+            onClose={() => setPaletteAnchor(null)}
+            data-testid="widget-palette-menu"
           >
-            Add TextInput
+            <MenuItem disabled><ListItemText primaryTypographyProps={{ variant: "caption", color: "text.secondary" }}>Containers</ListItemText></MenuItem>
+            {WIDGET_PALETTE.filter((w) => w.isContainer).map((item) => (
+              <MenuItem key={item.type} onClick={() => handleAddWidget(item)} data-testid={`palette-${item.type}`}>
+                <ListItemText>{item.label}</ListItemText>
+              </MenuItem>
+            ))}
+            <Divider />
+            <MenuItem disabled><ListItemText primaryTypographyProps={{ variant: "caption", color: "text.secondary" }}>Inputs</ListItemText></MenuItem>
+            {WIDGET_PALETTE.filter((w) => !w.isContainer).map((item) => (
+              <MenuItem key={item.type} onClick={() => handleAddWidget(item)} data-testid={`palette-${item.type}`}>
+                <ListItemText>{item.label}</ListItemText>
+              </MenuItem>
+            ))}
+          </Menu>
+
+          <Button data-testid="btn-delete-node" color="inherit" size="small" onClick={handleDeleteNode} disabled={!selectedNodeId || selectedNodeId === doc.rootNodeId}>
+            Delete
           </Button>
-          <Button
-            data-testid="btn-delete-node"
-            color="inherit"
-            size="small"
-            onClick={handleDeleteNode}
-            disabled={!selectedNodeId || selectedNodeId === doc.rootNodeId}
-          >
-            Delete Node
-          </Button>
-          <IconButton
-            data-testid="btn-move-up"
-            color="inherit"
-            onClick={handleMoveUp}
-            disabled={!canMoveUp}
-            aria-label="Move up"
-          >
-            ▲
-          </IconButton>
-          <IconButton
-            data-testid="btn-move-down"
-            color="inherit"
-            onClick={handleMoveDown}
-            disabled={!canMoveDown}
-            aria-label="Move down"
-          >
-            ▼
-          </IconButton>
-          <Button
-            data-testid="undo-btn"
-            color="inherit"
-            onClick={undo}
-            disabled={!canUndo}
-          >
-            Undo
-          </Button>
-          <Button
-            data-testid="redo-btn"
-            color="inherit"
-            onClick={redo}
-            disabled={!canRedo}
-          >
-            Redo
-          </Button>
+          <IconButton data-testid="btn-move-up" color="inherit" size="small" onClick={handleMoveUp} disabled={!canMoveUp} aria-label="Move up">▲</IconButton>
+          <IconButton data-testid="btn-move-down" color="inherit" size="small" onClick={handleMoveDown} disabled={!canMoveDown} aria-label="Move down">▼</IconButton>
+          <Divider orientation="vertical" flexItem sx={{ mx: 0.5, borderColor: "rgba(255,255,255,0.2)" }} />
+          <Button data-testid="undo-btn" color="inherit" size="small" onClick={undo} disabled={!canUndo}>Undo</Button>
+          <Button data-testid="redo-btn" color="inherit" size="small" onClick={redo} disabled={!canRedo}>Redo</Button>
+          <Divider orientation="vertical" flexItem sx={{ mx: 0.5, borderColor: "rgba(255,255,255,0.2)" }} />
+          <Button color="inherit" size="small" onClick={handleExportJson} data-testid="btn-export-json">Export</Button>
+          <Button color="inherit" size="small" onClick={handleCopyJson} data-testid="btn-copy-json">Copy</Button>
         </Toolbar>
       </AppBar>
+
       <DndContext sensors={sensors} collisionDetection={pointerWithin} onDragEnd={handleDragEnd}>
         <Box sx={{ display: "flex", flex: 1, overflow: "hidden" }}>
+          {/* Left panel */}
           <Paper
-            elevation={0}
             sx={{
-              width: 240,
+              width: 250,
               overflow: "hidden",
               borderRight: 1,
               borderColor: "divider",
               display: "flex",
               flexDirection: "column",
+              borderRadius: 0,
             }}
           >
             <Tabs value={leftTab} onChange={(_, v) => setLeftTab(v)} variant="fullWidth">
               <Tab label="Outline" data-testid="tab-outline" />
-              <Tab label="Domain Fields" data-testid="tab-domain-fields" />
+              <Tab label="Fields" data-testid="tab-domain-fields" />
+              <Tab label="Data" data-testid="tab-datasources" />
             </Tabs>
             <Box sx={{ flex: 1, overflow: "auto" }}>
-              {leftTab === 0 && (
-                <Outline doc={doc} selectedNodeId={selectedNodeId} onSelect={setSelectedNodeId} />
-              )}
+              {leftTab === 0 && <Outline doc={doc} selectedNodeId={selectedNodeId} onSelect={setSelectedNodeId} />}
               {leftTab === 1 && (
-                <DomainFieldsPanel
-                  fields={domainFields}
-                  entityName={entityName ?? ""}
-                  boundFieldNames={boundFieldNames}
-                  onAddField={handleAddDomainField}
+                <DomainFieldsPanel fields={domainFields} entityName={entityName ?? ""} boundFieldNames={boundFieldNames} onAddField={handleAddDomainField} />
+              )}
+              {leftTab === 2 && (
+                <DataSourcesPanel
+                  dataSources={(doc.dataSources ?? []) as NonNullable<FormDoc["dataSources"]>}
+                  onUpdate={(dataSources) => apply({ type: "SetDataSources", dataSources })}
                 />
               )}
             </Box>
           </Paper>
-        <Box sx={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column" }}>
-          <Canvas
-            doc={doc}
-            engine={engine}
-            selectedNodeId={selectedNodeId}
-            onSelect={setSelectedNodeId}
-          />
-        </Box>
-        <Paper
-          elevation={0}
-          sx={{
-            width: 280,
-            overflow: "auto",
-            borderLeft: 1,
-            borderColor: "divider",
-            display: "flex",
-            flexDirection: "column",
-          }}
-        >
-          <Box sx={{ flex: 1, overflow: "auto" }}>
-            <Inspector
+
+          {/* Center canvas */}
+          <Box sx={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+            <Box sx={{ display: "flex", alignItems: "center", px: 1.5, py: 0.5, borderBottom: 1, borderColor: "divider", bgcolor: "background.paper" }}>
+              <ToggleButtonGroup
+                size="small"
+                value={canvasMode}
+                exclusive
+                onChange={(_, v) => v && setCanvasMode(v)}
+                data-testid="canvas-mode-toggle"
+              >
+                <ToggleButton value="design" sx={{ px: 1.5, py: 0.25, fontSize: "0.75rem" }}>Design</ToggleButton>
+                <ToggleButton value="runtime" sx={{ px: 1.5, py: 0.25, fontSize: "0.75rem" }}>Preview</ToggleButton>
+              </ToggleButtonGroup>
+              <Typography variant="caption" color="text.secondary" sx={{ ml: 1 }}>
+                {canvasMode === "runtime" ? "Runtime preview — read-only" : "Design mode — click to select, drag to reorder"}
+              </Typography>
+            </Box>
+            <Canvas
               doc={doc}
-              selectedNodeId={selectedNodeId}
-              domainFields={domainFields}
-              onUpdateProps={handleUpdateProps}
-              onUpdateLayout={handleUpdateLayout}
-              onUpdateBindings={handleUpdateBindings}
+              engine={engine}
+              selectedNodeId={canvasMode === "design" ? selectedNodeId : null}
+              onSelect={canvasMode === "design" ? setSelectedNodeId : () => {}}
+              mode={canvasMode}
+              actionRunner={canvasMode === "runtime" ? actionRunner : undefined}
             />
           </Box>
-          <DiagnosticsPanel
-            errors={lastErrors}
-            warnings={lastWarnings}
-            onSelectNode={setSelectedNodeId}
-          />
-        </Paper>
+
+          {/* Right panel */}
+          <Paper
+            sx={{
+              width: 280,
+              overflow: "auto",
+              borderLeft: 1,
+              borderColor: "divider",
+              display: "flex",
+              flexDirection: "column",
+              borderRadius: 0,
+            }}
+          >
+            <Box sx={{ flex: 1, overflow: "auto" }}>
+              <Inspector
+                doc={doc}
+                selectedNodeId={selectedNodeId}
+                domainFields={domainFields}
+                onUpdateProps={handleUpdateProps}
+                onUpdateLayout={handleUpdateLayout}
+                onUpdateBindings={handleUpdateBindings}
+                onUpdateEvents={handleUpdateEvents}
+                onBindOptionsToDataSource={handleBindOptionsToDataSource}
+              />
+            </Box>
+            <DiagnosticsPanel errors={lastErrors} warnings={lastWarnings} onSelectNode={setSelectedNodeId} />
+          </Paper>
         </Box>
       </DndContext>
+      <Snackbar
+        open={toastOpen}
+        autoHideDuration={4000}
+        onClose={() => setToastOpen(false)}
+        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+      >
+        <Alert severity={toastSeverity} onClose={() => setToastOpen(false)} variant="filled" sx={{ width: "100%" }}>
+          {toastMsg}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 }

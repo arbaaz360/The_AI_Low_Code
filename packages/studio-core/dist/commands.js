@@ -22,6 +22,9 @@ export function applyCommand(doc, command) {
         case "UpdateBindings":
             newDoc = applyUpdateBindings(doc, command.nodeId, command.partialBindings);
             break;
+        case "UpdateEvents":
+            newDoc = applyUpdateEvents(doc, command.nodeId, command.events);
+            break;
         case "AddNode": {
             const parent = doc.nodes[command.parentId];
             if (!parent) {
@@ -74,6 +77,12 @@ export function applyCommand(doc, command) {
             newDoc = applyMoveNode(doc, command.nodeId, command.parentId, command.index);
             break;
         }
+        case "SetDataSources":
+            newDoc = { ...doc, dataSources: command.dataSources };
+            break;
+        case "SetPageEvents":
+            newDoc = { ...doc, pageEvents: command.pageEvents };
+            break;
         default: {
             const _ = command;
             return { doc, diagnostics: [] };
@@ -131,6 +140,15 @@ function applyUpdateLayout(doc, nodeId, partialLayout) {
         span: newSpan,
     };
     const newNode = { ...node, layout: merged };
+    const newNodes = { ...doc.nodes, [nodeId]: newNode };
+    return { ...doc, nodes: newNodes };
+}
+function applyUpdateEvents(doc, nodeId, events) {
+    const node = doc.nodes[nodeId];
+    if (!node)
+        return doc;
+    const merged = { ...(node.events ?? {}), ...events };
+    const newNode = { ...node, events: merged };
     const newNodes = { ...doc.nodes, [nodeId]: newNode };
     return { ...doc, nodes: newNodes };
 }

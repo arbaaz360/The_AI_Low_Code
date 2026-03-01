@@ -1,4 +1,14 @@
 import type { Expr } from "@ai-low-code/expr";
+export interface DataSourceDefMeta {
+    id: string;
+    kind: "mock" | "rest";
+    name?: string;
+    response?: unknown;
+    delayMs?: number;
+    failRate?: number;
+    method?: "GET" | "POST";
+    url?: string;
+}
 /** FormDoc shape (validated metadata). */
 export interface FormDoc {
     schemaVersion: string;
@@ -6,6 +16,10 @@ export interface FormDoc {
     rootNodeId: string;
     nodes: Record<string, FormNode>;
     rules?: FormRule[];
+    dataSources?: DataSourceDefMeta[];
+    pageEvents?: {
+        onLoad?: unknown[];
+    };
     dataContext: {
         entity: string;
         mode: string;
@@ -39,6 +53,11 @@ export interface FormNode {
             params?: Record<string, unknown>;
         }[];
         asyncValidators?: unknown[];
+    };
+    events?: {
+        onChange?: unknown[];
+        onClick?: unknown[];
+        onBlur?: unknown[];
     };
 }
 export interface FormRule {

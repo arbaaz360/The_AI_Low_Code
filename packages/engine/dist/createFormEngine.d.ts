@@ -15,6 +15,8 @@ export interface FormEngine {
         makeSelectError: (path: string) => (state: RootState) => string[];
         makeSelectNodeVisible: (nodeId: string) => (state: RootState) => boolean;
         makeSelectNodeDisabled: (nodeId: string) => (state: RootState) => boolean;
+        makeSelectDataByKey: (key: string) => (state: RootState) => unknown;
+        makeSelectRequestStatus: (key: string) => (state: RootState) => string;
     };
     validateAll: () => void;
     buildSubmitRequest: () => Record<string, unknown>;

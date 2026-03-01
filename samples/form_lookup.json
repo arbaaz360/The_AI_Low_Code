@@ -1,0 +1,114 @@
+{
+  "schemaVersion": "1.0",
+  "pageFamily": "Form",
+  "rootNodeId": "root",
+  "dataSources": [
+    {
+      "id": "ds_countries",
+      "kind": "mock",
+      "name": "Countries",
+      "response": [
+        { "value": "US", "label": "United States" },
+        { "value": "CA", "label": "Canada" },
+        { "value": "GB", "label": "United Kingdom" },
+        { "value": "DE", "label": "Germany" },
+        { "value": "IN", "label": "India" },
+        { "value": "JP", "label": "Japan" }
+      ],
+      "delayMs": 300
+    },
+    {
+      "id": "ds_categories",
+      "kind": "mock",
+      "name": "Product Categories",
+      "response": [
+        { "value": "electronics", "label": "Electronics" },
+        { "value": "clothing", "label": "Clothing" },
+        { "value": "books", "label": "Books" },
+        { "value": "home", "label": "Home & Garden" }
+      ],
+      "delayMs": 200
+    }
+  ],
+  "pageEvents": {
+    "onLoad": [
+      {
+        "type": "CallDataSource",
+        "dataSourceId": "ds_countries",
+        "resultKey": "ds_countries",
+        "requestKey": "req_countries"
+      },
+      {
+        "type": "CallDataSource",
+        "dataSourceId": "ds_categories",
+        "resultKey": "ds_categories",
+        "requestKey": "req_categories"
+      }
+    ]
+  },
+  "nodes": {
+    "root": {
+      "id": "root",
+      "type": "layout.Section",
+      "props": { "title": "Lookup Demo — Dynamic Options" },
+      "children": ["grid1"]
+    },
+    "grid1": {
+      "id": "grid1",
+      "type": "layout.FormGrid",
+      "props": { "columns": 12 },
+      "children": ["name_field", "country_field", "category_field", "notes_field", "submit_btn"]
+    },
+    "name_field": {
+      "id": "name_field",
+      "type": "core.TextInput",
+      "props": { "label": "Full Name", "placeholder": "Enter your name" },
+      "bindings": { "value": "form.values.name" },
+      "layout": { "kind": "gridItem", "span": { "xs": 12, "md": 6 } }
+    },
+    "country_field": {
+      "id": "country_field",
+      "type": "core.Select",
+      "props": { "label": "Country" },
+      "bindings": { "value": "form.values.country", "options": "data.byKey.ds_countries" },
+      "layout": { "kind": "gridItem", "span": { "xs": 12, "md": 6 } }
+    },
+    "category_field": {
+      "id": "category_field",
+      "type": "core.Select",
+      "props": { "label": "Product Category" },
+      "bindings": { "value": "form.values.category", "options": "data.byKey.ds_categories" },
+      "layout": { "kind": "gridItem", "span": { "xs": 12, "md": 6 } }
+    },
+    "notes_field": {
+      "id": "notes_field",
+      "type": "core.TextArea",
+      "props": { "label": "Notes", "placeholder": "Additional details...", "minRows": 3 },
+      "bindings": { "value": "form.values.notes" },
+      "layout": { "kind": "gridItem", "span": { "xs": 12 } }
+    },
+    "submit_btn": {
+      "id": "submit_btn",
+      "type": "core.Button",
+      "props": { "label": "Submit", "variant": "contained", "color": "primary" },
+      "events": {
+        "onClick": [
+          { "type": "ValidateForm" },
+          { "type": "Toast", "message": "Form submitted!", "severity": "success" }
+        ]
+      },
+      "layout": { "kind": "gridItem", "span": { "xs": 12 } }
+    }
+  },
+  "rules": [],
+  "dataContext": { "entity": "LookupDemo", "mode": "create" },
+  "submission": {
+    "submitOperation": { "operationId": "lookup.submit" },
+    "mapping": [
+      { "sourcePath": "name", "targetPath": "Name" },
+      { "sourcePath": "country", "targetPath": "CountryCode" },
+      { "sourcePath": "category", "targetPath": "Category" },
+      { "sourcePath": "notes", "targetPath": "Notes" }
+    ]
+  }
+}

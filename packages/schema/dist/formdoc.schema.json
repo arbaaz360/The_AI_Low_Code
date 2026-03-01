@@ -21,6 +21,17 @@
             "type": "array",
             "items": { "$ref": "#/definitions/ActionDef" }
         },
+        "dataSources": {
+            "type": "array",
+            "items": { "$ref": "#/definitions/DataSourceDef" }
+        },
+        "pageEvents": {
+            "type": "object",
+            "properties": {
+                "onLoad": { "type": "array", "items": { "$ref": "#/definitions/NodeAction" } }
+            },
+            "additionalProperties": false
+        },
         "resources": { "$ref": "#/definitions/Resources" },
         "permissions": { "$ref": "#/definitions/Permissions" },
         "dataContext": { "$ref": "#/definitions/DataContext" },
@@ -135,6 +146,47 @@
             },
             "additionalProperties": false
         },
+        "NodeAction": {
+            "type": "object",
+            "required": ["type"],
+            "properties": {
+                "type": {
+                    "type": "string",
+                    "enum": ["SetValue", "ValidateForm", "Toast", "Navigate", "Batch", "If", "CallDataSource", "SetData"]
+                },
+                "path": { "type": "string" },
+                "value": {},
+                "message": {},
+                "severity": { "enum": ["success", "info", "warning", "error"] },
+                "to": {},
+                "actions": { "type": "array", "items": { "$ref": "#/definitions/NodeAction" } },
+                "condition": { "$ref": "#/definitions/Expr" },
+                "then": { "type": "array", "items": { "$ref": "#/definitions/NodeAction" } },
+                "else": { "type": "array", "items": { "$ref": "#/definitions/NodeAction" } },
+                "dataSourceId": { "type": "string" },
+                "args": { "$ref": "#/definitions/Expr" },
+                "resultKey": { "type": "string" },
+                "requestKey": { "type": "string" },
+                "onError": { "type": "array", "items": { "$ref": "#/definitions/NodeAction" } },
+                "key": { "type": "string" }
+            },
+            "additionalProperties": false
+        },
+        "DataSourceDef": {
+            "type": "object",
+            "required": ["id", "kind"],
+            "properties": {
+                "id": { "type": "string" },
+                "kind": { "type": "string", "enum": ["mock", "rest"] },
+                "name": { "type": "string" },
+                "response": {},
+                "delayMs": { "type": "number" },
+                "failRate": { "type": "number" },
+                "method": { "type": "string", "enum": ["GET", "POST"] },
+                "url": { "type": "string" }
+            },
+            "additionalProperties": false
+        },
         "Resources": {
             "type": "object",
             "additionalProperties": false
@@ -184,10 +236,12 @@
                 },
                 "events": {
                     "type": "object",
-                    "additionalProperties": {
-                        "type": "array",
-                        "items": { "type": "string" }
-                    }
+                    "properties": {
+                        "onChange": { "type": "array", "items": { "$ref": "#/definitions/NodeAction" } },
+                        "onClick": { "type": "array", "items": { "$ref": "#/definitions/NodeAction" } },
+                        "onBlur": { "type": "array", "items": { "$ref": "#/definitions/NodeAction" } }
+                    },
+                    "additionalProperties": false
                 },
                 "styleTokens": {
                     "type": "object",

@@ -3,6 +3,7 @@ import React from "react";
 import Box from "@mui/material/Box";
 import Grid from "@mui/material/Grid";
 import Typography from "@mui/material/Typography";
+import Paper from "@mui/material/Paper";
 function getSpans(layout) {
     if (!layout || typeof layout !== "object")
         return { xs: 12, md: 12 };
@@ -30,5 +31,5 @@ export function Section({ nodeId, nodeType, props, doc, children, mode, }) {
         const childNode = doc?.nodes?.[cid];
         return getSpans(childNode?.layout);
     });
-    return (_jsxs(Box, { "data-nodeid": mode === "design" ? nodeId : undefined, "data-nodetype": mode === "design" ? nodeType : undefined, sx: { mb: 2 }, children: [title && (_jsx(Typography, { variant: "h6", sx: { mb: 1 }, children: title })), useGrid ? (_jsx(Grid, { container: true, spacing: 2, children: childArray.map((child, i) => (_jsx(Grid, { item: true, xs: childSpans[i]?.xs ?? 12, md: childSpans[i]?.md ?? 12, children: child }, i))) })) : (_jsx(Box, { children: children }))] }));
+    return (_jsxs(Paper, { variant: "outlined", "data-nodeid": mode === "design" ? nodeId : undefined, "data-nodetype": mode === "design" ? nodeType : undefined, sx: { mb: 2, p: 2, borderRadius: 1.5 }, children: [title && (_jsx(Typography, { variant: "subtitle1", sx: { mb: 1.5, fontWeight: 600 }, children: title })), useGrid ? (_jsx(Grid, { container: true, spacing: 2, children: childArray.map((child, i) => (_jsx(Grid, { item: true, xs: childSpans[i]?.xs ?? 12, md: childSpans[i]?.md ?? 12, children: child }, i))) })) : (_jsx(Box, { children: children }))] }));
 }

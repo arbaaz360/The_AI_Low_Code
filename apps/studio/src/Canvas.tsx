@@ -5,6 +5,7 @@ import { PageRenderer } from "@ai-low-code/renderer";
 import { defaultRegistry } from "@ai-low-code/widgets-core";
 import { useDroppable } from "@dnd-kit/core";
 import type { FormDoc, FormEngine, FormNode } from "@ai-low-code/engine";
+import type { ActionRunner } from "@ai-low-code/actions";
 import { isContainerType } from "@ai-low-code/studio-core";
 
 interface CanvasProps {
@@ -12,6 +13,8 @@ interface CanvasProps {
   engine: FormEngine;
   selectedNodeId: string | null;
   onSelect: (nodeId: string) => void;
+  mode?: "design" | "runtime";
+  actionRunner?: ActionRunner;
 }
 
 function getCanvasDropContainerIds(doc: FormDoc): string[] {
@@ -221,14 +224,15 @@ function CanvasBeforeAfterOverlay({
   );
 }
 
-export function Canvas({ doc, engine, selectedNodeId, onSelect }: CanvasProps) {
+export function Canvas({ doc, engine, selectedNodeId, onSelect, mode = "design", actionRunner }: CanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [overlayStyle, setOverlayStyle] = useState<React.CSSProperties>({ display: "none" });
   const containerIds = React.useMemo(() => getCanvasDropContainerIds(doc), [doc]);
   const beforeAfterNodeIds = React.useMemo(() => getCanvasBeforeAfterNodeIds(doc), [doc]);
+  const isDesign = mode === "design";
 
   const updateOverlay = useCallback(() => {
-    if (!selectedNodeId || !containerRef.current) {
+    if (!isDesign || !selectedNodeId || !containerRef.current) {
       setOverlayStyle({ display: "none" });
       return;
     }
@@ -249,8 +253,7 @@ export function Canvas({ doc, engine, selectedNodeId, onSelect }: CanvasProps) {
       pointerEvents: "none",
       boxSizing: "border-box",
     });
-  // doc triggers recalculation when widget positions change due to layout/prop edits
-  }, [selectedNodeId, doc]);
+  }, [selectedNodeId, doc, isDesign]);
 
   useEffect(() => {
     updateOverlay();
@@ -269,6 +272,7 @@ export function Canvas({ doc, engine, selectedNodeId, onSelect }: CanvasProps) {
   }, [updateOverlay]);
 
   const handleCanvasClick = (e: React.MouseEvent) => {
+    if (!isDesign) return;
     const target = (e.target as HTMLElement).closest("[data-nodeid]");
     if (target) {
       const nodeId = target.getAttribute("data-nodeid");
@@ -285,23 +289,26 @@ export function Canvas({ doc, engine, selectedNodeId, onSelect }: CanvasProps) {
         overflow: "auto",
         position: "relative",
         p: 2,
+        bgcolor: isDesign ? "#f8f9fa" : "background.paper",
       }}
       onClick={handleCanvasClick}
     >
-      <Provider store={engine.store}>
-        <PageRenderer doc={doc} engine={engine} registry={defaultRegistry} mode="design" />
-      </Provider>
-      <div
-        data-testid="selection-overlay"
-        style={overlayStyle}
-        aria-hidden
-      />
-      {containerIds.map((cid) => (
-        <CanvasDropOverlay key={`inside-${cid}`} containerId={cid} containerRef={containerRef} doc={doc} />
-      ))}
-      {beforeAfterNodeIds.map((nid) => (
-        <CanvasBeforeAfterOverlay key={`ba-${nid}`} nodeId={nid} containerRef={containerRef} doc={doc} />
-      ))}
+      <Box sx={isDesign ? {} : { maxWidth: 800, mx: "auto" }}>
+        <Provider store={engine.store}>
+          <PageRenderer doc={doc} engine={engine} registry={defaultRegistry} mode={mode} actionRunner={actionRunner} />
+        </Provider>
+      </Box>
+      {isDesign && (
+        <>
+          <div data-testid="selection-overlay" style={overlayStyle} aria-hidden />
+          {containerIds.map((cid) => (
+            <CanvasDropOverlay key={`inside-${cid}`} containerId={cid} containerRef={containerRef} doc={doc} />
+          ))}
+          {beforeAfterNodeIds.map((nid) => (
+            <CanvasBeforeAfterOverlay key={`ba-${nid}`} nodeId={nid} containerRef={containerRef} doc={doc} />
+          ))}
+        </>
+      )}
     </Box>
   );
 }

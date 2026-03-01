@@ -11,8 +11,12 @@ import { getPropSchema } from "@ai-low-code/widgets-core";
 import type { PropSchemaField } from "@ai-low-code/studio-core";
 import { clampSpan, isGridContainerType } from "@ai-low-code/studio-core";
 import type { DomainField } from "./domainModel.js";
+import { EventEditor } from "./EventEditor.jsx";
 
-const BINDABLE_WIDGET_TYPES = ["core.TextInput", "core.Checkbox", "core.Select"];
+const BINDABLE_WIDGET_TYPES = [
+  "core.TextInput", "core.TextArea", "core.NumberInput", "core.DateInput",
+  "core.Checkbox", "core.Switch", "core.Select", "core.RadioGroup",
+];
 
 function parseValuePath(path: string | undefined): string | null {
   if (typeof path !== "string") return null;
@@ -40,6 +44,8 @@ function getSpanValue(layout: Record<string, unknown> | undefined, key: "xs" | "
   return v !== undefined && Number.isInteger(v) ? v : undefined;
 }
 
+type DataSourceDefMeta = NonNullable<FormDoc["dataSources"]>[number];
+
 interface InspectorProps {
   doc: FormDoc;
   selectedNodeId: string | null;
@@ -47,6 +53,8 @@ interface InspectorProps {
   onUpdateProps: (nodeId: string, partialProps: Record<string, unknown>) => void;
   onUpdateLayout?: (nodeId: string, partialLayout: Record<string, unknown>) => void;
   onUpdateBindings?: (nodeId: string, partialBindings: Record<string, unknown>) => void;
+  onUpdateEvents?: (nodeId: string, events: Record<string, unknown[]>) => void;
+  onBindOptionsToDataSource?: (nodeId: string, dataSourceId: string, resultKey: string) => void;
 }
 
 function getFieldValue(props: Record<string, unknown> | undefined, field: PropSchemaField): unknown {
@@ -87,6 +95,26 @@ function PropControl({
     );
   }
 
+  if (field.type === "number") {
+    return (
+      <TextField
+        label={field.label}
+        size="small"
+        fullWidth
+        type="number"
+        value={value ?? ""}
+        onChange={(e) => {
+          const raw = e.target.value;
+          if (raw === "") { onChange(undefined); return; }
+          const n = Number(raw);
+          onChange(Number.isNaN(n) ? undefined : n);
+        }}
+        inputProps={{ "data-testid": `inspector-prop-${field.key}` }}
+        sx={{ mb: 1 }}
+      />
+    );
+  }
+
   return (
     <TextField
       label={field.label}
@@ -107,6 +135,8 @@ export function Inspector({
   onUpdateProps,
   onUpdateLayout,
   onUpdateBindings,
+  onUpdateEvents,
+  onBindOptionsToDataSource,
 }: InspectorProps) {
   const node = selectedNodeId ? (doc.nodes[selectedNodeId] as FormNode | undefined) : null;
   const schema = node ? getPropSchema(node.type) : null;
@@ -210,14 +240,62 @@ export function Inspector({
     </>
   );
 
+  const dataSources = (doc.dataSources ?? []) as DataSourceDefMeta[];
+  const isSelectLike = node.type === "core.Select" || node.type === "core.RadioGroup";
+  const currentOptionsBinding = typeof node.bindings?.options === "string" ? node.bindings.options : undefined;
+  const currentBoundDsKey =
+    currentOptionsBinding?.startsWith("data.byKey.")
+      ? currentOptionsBinding.slice("data.byKey.".length)
+      : undefined;
+
+  const dataSourceBindSection = isSelectLike && dataSources.length > 0 && onBindOptionsToDataSource && (
+    <>
+      <Typography variant="subtitle2" color="text.secondary" sx={{ mt: 2, mb: 0.5 }}>
+        Options DataSource
+      </Typography>
+      <FormControl size="small" fullWidth sx={{ mb: 2 }}>
+        <InputLabel>Bind options from</InputLabel>
+        <Select
+          value={currentBoundDsKey ?? "__none__"}
+          label="Bind options from"
+          onChange={(e) => {
+            const v = e.target.value;
+            if (v === "__none__") return;
+            const ds = dataSources.find((d) => d.id === v);
+            if (!ds) return;
+            const resultKey = ds.id;
+            onBindOptionsToDataSource(selectedNodeId, ds.id, resultKey);
+          }}
+          data-testid="inspector-ds-bind"
+        >
+          <MenuItem value="__none__">(none)</MenuItem>
+          {dataSources.map((ds) => (
+            <MenuItem key={ds.id} value={ds.id}>
+              {ds.name || ds.id}
+            </MenuItem>
+          ))}
+        </Select>
+      </FormControl>
+    </>
+  );
+
+  const eventsSection = onUpdateEvents && (
+    <EventEditor
+      nodeType={node.type}
+      events={node.events as Record<string, unknown[]> | undefined}
+      onUpdateEvents={(events) => onUpdateEvents(selectedNodeId, events)}
+    />
+  );
+
   if (!schema || schema.fields.length === 0) {
     return (
       <Box data-testid="inspector" sx={{ p: 2, minWidth: 220 }}>
         {baseInfo}
-        {bindingSection}
-        <Typography color="text.secondary" sx={{ mb: 2 }}>
-          No editable props for this type
-        </Typography>
+      {bindingSection}
+      {dataSourceBindSection}
+      <Typography color="text.secondary" sx={{ mb: 2 }}>
+        No editable props for this type
+      </Typography>
         {showLayoutSection && onUpdateLayout && (
           <>
             <Typography variant="subtitle2" color="text.secondary" sx={{ mt: 2, mb: 0.5 }}>
@@ -260,6 +338,7 @@ export function Inspector({
             />
           </>
         )}
+        {eventsSection}
       </Box>
     );
   }
@@ -268,6 +347,7 @@ export function Inspector({
     <Box data-testid="inspector" sx={{ p: 2, minWidth: 220 }}>
       {baseInfo}
       {bindingSection}
+      {dataSourceBindSection}
       <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 0.5 }}>
         Props
       </Typography>
@@ -325,6 +405,7 @@ export function Inspector({
           />
         </>
       )}
+      {eventsSection}
     </Box>
   );
 }

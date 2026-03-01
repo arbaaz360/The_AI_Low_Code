@@ -1,6 +1,7 @@
 import type { FormDoc } from "@ai-low-code/engine";
 import type { ComponentType, ReactNode } from "react";
 import type { FormEngine } from "@ai-low-code/engine";
+import type { ActionRunner } from "@ai-low-code/actions";
 export type WidgetRegistry = Record<string, ComponentType<WidgetProps>>;
 export interface WidgetProps {
     nodeId: string;
@@ -10,6 +11,8 @@ export interface WidgetProps {
     doc?: import("@ai-low-code/engine").FormDoc;
     value?: unknown;
     onChange?: (value: unknown) => void;
+    onClick?: () => void;
+    onBlur?: () => void;
     disabled?: boolean;
     error?: string[];
     label?: string;
@@ -22,5 +25,6 @@ export interface RendererProps {
     engine: FormEngine;
     registry: WidgetRegistry;
     mode?: "runtime" | "design";
+    actionRunner?: ActionRunner;
 }
 //# sourceMappingURL=types.d.ts.map

@@ -26,6 +26,8 @@ export interface FormEngine {
     makeSelectError: (path: string) => (state: RootState) => string[];
     makeSelectNodeVisible: (nodeId: string) => (state: RootState) => boolean;
     makeSelectNodeDisabled: (nodeId: string) => (state: RootState) => boolean;
+    makeSelectDataByKey: (key: string) => (state: RootState) => unknown;
+    makeSelectRequestStatus: (key: string) => (state: RootState) => string;
   };
   validateAll: () => void;
   buildSubmitRequest: () => Record<string, unknown>;
@@ -148,6 +150,15 @@ export function createFormEngine(
       state.engine.ui.disabledByNodeId[nodeId] ?? false;
   }
 
+  function makeSelectDataByKey(key: string) {
+    return (state: RootState) => state.engine.data.byKey[key];
+  }
+
+  function makeSelectRequestStatus(key: string) {
+    return (state: RootState) =>
+      state.engine.data.requests[key]?.status ?? "idle";
+  }
+
   function validateAll(): void {
     const state = store.getState().engine;
     const doc = state.formDoc;
@@ -255,6 +266,8 @@ export function createFormEngine(
       makeSelectError,
       makeSelectNodeVisible,
       makeSelectNodeDisabled,
+      makeSelectDataByKey,
+      makeSelectRequestStatus,
     },
     validateAll,
     buildSubmitRequest,

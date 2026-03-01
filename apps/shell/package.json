@@ -10,9 +10,12 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@ai-low-code/actions": "*",
+    "@ai-low-code/datasources": "*",
     "@ai-low-code/engine": "*",
     "@ai-low-code/renderer": "*",
     "@ai-low-code/schema": "*",
+    "@ai-low-code/theme": "*",
     "@ai-low-code/widgets-core": "*",
     "@emotion/react": "^11.13.0",
     "@emotion/styled": "^11.13.0",

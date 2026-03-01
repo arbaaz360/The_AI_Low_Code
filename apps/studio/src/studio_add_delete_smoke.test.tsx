@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, act } from "@testing-library/react";
 import { readFileSync } from "fs";
 import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
@@ -20,7 +20,7 @@ if (!result.ok) throw new Error(JSON.stringify(result.errors));
 const theme = createTheme();
 
 describe("StudioApp add/delete smoke", () => {
-  it("clicks Add Section, verifies Outline grows", () => {
+  it("adds a Section via Widget Palette, verifies Outline grows", async () => {
     render(
       <ThemeProvider theme={theme}>
         <CssBaseline />
@@ -28,11 +28,16 @@ describe("StudioApp add/delete smoke", () => {
       </ThemeProvider>
     );
 
-    const initialSectionCount = screen.getAllByText(/Section \(/).length;
-    const addSectionBtn = screen.getByTestId("btn-add-section");
-    fireEvent.click(addSectionBtn);
+    const outlineText = screen.getAllByTestId("outline")[0]!.textContent;
 
-    const newSectionCount = screen.getAllByText(/Section \(/).length;
-    expect(newSectionCount).toBeGreaterThan(initialSectionCount);
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("btn-add-widget"));
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("palette-layout.Section"));
+    });
+
+    const newOutlineText = screen.getAllByTestId("outline")[0]!.textContent;
+    expect(newOutlineText!.length).toBeGreaterThan(outlineText!.length);
   });
 });

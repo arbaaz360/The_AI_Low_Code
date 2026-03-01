@@ -7,6 +7,15 @@ import { getByPath, setByPath } from "./path.js";
 import type { FormDoc } from "./types.js";
 import { extractValuePaths } from "./extract.js";
 
+export interface DataRequest {
+  requestId: string;
+  dataSourceId: string;
+  status: "idle" | "loading" | "success" | "error";
+  startedAt: number;
+  finishedAt?: number;
+  error?: string;
+}
+
 export interface EngineState {
   formDoc: FormDoc | null;
   /** Nested object for form.values.* */
@@ -17,6 +26,10 @@ export interface EngineState {
   ui: {
     visibleByNodeId: Record<string, boolean>;
     disabledByNodeId: Record<string, boolean>;
+  };
+  data: {
+    byKey: Record<string, unknown>;
+    requests: Record<string, DataRequest>;
   };
 }
 
@@ -33,6 +46,11 @@ function buildInitialValues(paths: string[]): Record<string, unknown> {
   return values;
 }
 
+const initialData = (): EngineState["data"] => ({
+  byKey: {},
+  requests: {},
+});
+
 const initialState: EngineState = {
   formDoc: null,
   values: {},
@@ -40,6 +58,7 @@ const initialState: EngineState = {
   dirtyByPath: {},
   errorsByPath: {},
   ui: initialUi(),
+  data: initialData(),
 };
 
 export const engineSlice = createSlice({
@@ -60,6 +79,7 @@ export const engineSlice = createSlice({
       state.dirtyByPath = {};
       state.errorsByPath = {};
       state.ui = initialUi();
+      state.data = initialData();
     },
     setValue: (
       state: Draft<EngineState>,
@@ -110,6 +130,48 @@ export const engineSlice = createSlice({
       state.errorsByPath = {};
       state.ui = initialUi();
     },
+    dataRequestStarted: (
+      state: Draft<EngineState>,
+      action: PayloadAction<{ requestId: string; dataSourceId: string }>
+    ) => {
+      const { requestId, dataSourceId } = action.payload;
+      state.data.requests[requestId] = {
+        requestId,
+        dataSourceId,
+        status: "loading",
+        startedAt: Date.now(),
+      };
+    },
+    dataRequestSucceeded: (
+      state: Draft<EngineState>,
+      action: PayloadAction<{ requestId: string; resultKey: string; result: unknown }>
+    ) => {
+      const { requestId, resultKey, result } = action.payload;
+      const req = state.data.requests[requestId];
+      if (req) {
+        req.status = "success";
+        req.finishedAt = Date.now();
+      }
+      state.data.byKey[resultKey] = result as Draft<unknown>;
+    },
+    dataRequestFailed: (
+      state: Draft<EngineState>,
+      action: PayloadAction<{ requestId: string; error: string }>
+    ) => {
+      const { requestId, error } = action.payload;
+      const req = state.data.requests[requestId];
+      if (req) {
+        req.status = "error";
+        req.finishedAt = Date.now();
+        req.error = error;
+      }
+    },
+    dataSetByKey: (
+      state: Draft<EngineState>,
+      action: PayloadAction<{ key: string; value: unknown }>
+    ) => {
+      state.data.byKey[action.payload.key] = action.payload.value as Draft<unknown>;
+    },
   },
 });
 
@@ -120,4 +182,8 @@ export const {
   setErrors,
   setUiState,
   resetForm,
+  dataRequestStarted,
+  dataRequestSucceeded,
+  dataRequestFailed,
+  dataSetByKey,
 } = engineSlice.actions;
